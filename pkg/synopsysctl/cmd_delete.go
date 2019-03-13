@@ -128,6 +128,31 @@ var deleteAlertCmd = &cobra.Command{
 	},
 }
 
+// deleteRgpCmd deletes an Rgp from the cluster
+var deleteRgpCmd = &cobra.Command{
+	Use:   "rgp NAMESPACE",
+	Short: "Delete an Rgp",
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 1 {
+			return fmt.Errorf("This command only accepts 1 argument")
+		}
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		log.Debugf("Deleting an Rgp\n")
+		// Read Commandline Parameters
+		rgpNamespace := args[0]
+
+		// Delete Rgp with Client
+		err := rgpClient.SynopsysV1().Rgps(rgpNamespace).Delete(rgpNamespace, &metav1.DeleteOptions{})
+		if err != nil {
+			log.Errorf("Error deleting the Rgp: %s", err)
+			return nil
+		}
+		return nil
+	},
+}
+
 func init() {
 	deleteCmd.DisableFlagParsing = true // lets deleteCmd pass flags to kube/oc
 	rootCmd.AddCommand(deleteCmd)
@@ -136,4 +161,5 @@ func init() {
 	deleteCmd.AddCommand(deleteBlackduckCmd)
 	deleteCmd.AddCommand(deleteOpsSightCmd)
 	deleteCmd.AddCommand(deleteAlertCmd)
+	deleteCmd.AddCommand(deleteRgpCmd)
 }
