@@ -36,6 +36,7 @@ import (
 	opssightv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/opssight/v1"
 	blackduckclientset "github.com/blackducksoftware/synopsys-operator/pkg/blackduck/client/clientset/versioned"
 	opssightclientset "github.com/blackducksoftware/synopsys-operator/pkg/opssight/client/clientset/versioned"
+	rgpclientset "github.com/blackducksoftware/synopsys-operator/pkg/rgp/client/clientset/versioned"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -48,6 +49,7 @@ var restconfig *rest.Config
 var blackduckClient *blackduckclientset.Clientset
 var opssightClient *opssightclientset.Clientset
 var alertClient *alertclientset.Clientset
+var rgpClient *rgpclientset.Clientset
 
 // These vars used by KubeCmd
 var openshift bool
@@ -203,6 +205,11 @@ func setResourceClients() {
 		panic(fmt.Errorf("Error creating the Alert Clientset: %s", err))
 	}
 	alertClient = aClient
+	rClient, err := rgpclientset.NewForConfig(restconfig)
+	if err != nil {
+		panic(fmt.Errorf("Error creating the Rgp Clientset: %s", err))
+	}
+	rgpClient = rClient
 }
 
 // getKubeRestConfig gets the user's kubeconfig from their system

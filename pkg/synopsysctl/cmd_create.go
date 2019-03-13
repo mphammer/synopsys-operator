@@ -29,8 +29,10 @@ import (
 	alertv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
 	blackduckv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
 	opssightv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/opssight/v1"
+	rgpv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/rgp/v1"
 	blackduck "github.com/blackducksoftware/synopsys-operator/pkg/blackduck"
 	opssight "github.com/blackducksoftware/synopsys-operator/pkg/opssight"
+	rgp "github.com/blackducksoftware/synopsys-operator/pkg/rgp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,16 +42,19 @@ import (
 var createBlackduckCtl ResourceCtl
 var createOpsSightCtl ResourceCtl
 var createAlertCtl ResourceCtl
+var createRgpCtl ResourceCtl
 
 // Flags for the Base Spec (template)
 var baseBlackduckSpec = "persistentStorage"
 var baseOpsSightSpec = "disabledBlackduck"
 var baseAlertSpec = "spec1"
+var baseRgpSpec = "spec1"
 
 // Flags for using mock mode - don't deploy
 var mockBlackduck bool
 var mockOpsSight bool
 var mockAlert bool
+var mockRgp bool
 
 // createCmd represents the create command
 var createCmd = &cobra.Command{
@@ -81,7 +86,7 @@ var createCmd = &cobra.Command{
 	},
 }
 
-// createCmd represents the create command for Blackduck
+// createBlackduckCmd represents the create command for Blackduck
 var createBlackduckCmd = &cobra.Command{
 	Use:   "blackduck NAMESPACE",
 	Short: "Create an instance of a Blackduck",
@@ -147,7 +152,7 @@ var createBlackduckCmd = &cobra.Command{
 	},
 }
 
-// createCmd represents the create command for OpsSight
+// createOpsSightCmd represents the create command for OpsSight
 var createOpsSightCmd = &cobra.Command{
 	Use:   "opssight NAMESPACE",
 	Short: "Create an instance of OpsSight",
@@ -212,7 +217,7 @@ var createOpsSightCmd = &cobra.Command{
 	},
 }
 
-// createCmd represents the create command for Alert
+// createAlertCmd represents the create command for Alert
 var createAlertCmd = &cobra.Command{
 	Use:   "alert NAMESPACE",
 	Short: "Create an instance of Alert",
@@ -276,11 +281,76 @@ var createAlertCmd = &cobra.Command{
 	},
 }
 
+// createRgpCmd represents the create command for Rgp
+var createRgpCmd = &cobra.Command{
+	Use:   "rgp NAMESPACE",
+	Short: "Create an instance of Rgp",
+	Args: func(cmd *cobra.Command, args []string) error {
+		// Check Number of Arguments
+		if len(args) > 1 {
+			return fmt.Errorf("This command only accepts up to 1 argument")
+		}
+		err := createRgpCtl.CheckSpecFlags()
+		if err != nil {
+			return fmt.Errorf("%s", err)
+		}
+		// Check/Set the Spec Type
+		err = createRgpCtl.SwitchSpec(baseRgpSpec)
+		if err != nil {
+			return err
+		}
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		log.Debugf("Creating an Rgp\n")
+		// Read Commandline Parameters
+		rgpName := "rgp"
+		if len(args) == 1 {
+			rgpName = args[0]
+		}
+
+		// Update Spec with user's flags
+		createRgpCtl.SetChangedFlags(cmd.Flags())
+
+		// Set Namespace in Spec
+		rgpSpec, _ := createRgpCtl.GetSpec().(rgpv1.RgpSpec)
+		rgpSpec.Namespace = rgpName
+
+		// Create and Deploy Rgp CRD
+		rgp := &rgpv1.Rgp{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      rgpName,
+				Namespace: rgpName,
+			},
+			Spec: rgpSpec,
+		}
+		if mockRgp {
+			prettyPrint, _ := json.MarshalIndent(rgp, "", "    ")
+			fmt.Printf("%s\n", prettyPrint)
+		} else {
+			// Create namespace for the Rgp
+			err := DeployCRDNamespace(restconfig, rgpName)
+			if err != nil {
+				log.Errorf("%s", err)
+				return nil
+			}
+			// Create the Rgp with Client
+			_, err = rgpClient.SynopsysV1().Rgps(rgpName).Create(rgp)
+			if err != nil {
+				log.Errorf("Error creating the Rgp : %s", err)
+				return nil
+			}
+		}
+		return nil
+	},
+}
+
 func init() {
 	// initialize global resource ctl structs for commands to use
 	createBlackduckCtl = blackduck.NewBlackduckCtl()
 	createOpsSightCtl = opssight.NewOpsSightCtl()
 	createAlertCtl = alert.NewAlertCtl()
+	createRgpCtl = rgp.NewRgpCtl()
 
 	createCmd.DisableFlagParsing = true // lets createCmd pass flags to kube/oc
 	rootCmd.AddCommand(createCmd)
@@ -302,4 +372,10 @@ func init() {
 	createAlertCmd.Flags().BoolVar(&mockAlert, "mock", false, "Prints resource spec instead of creating")
 	createAlertCtl.AddSpecFlags(createAlertCmd)
 	createCmd.AddCommand(createAlertCmd)
+
+	// Add Rgp Command
+	createRgpCmd.Flags().StringVar(&baseRgpSpec, "template", baseRgpSpec, "Base resource configuration to modify with flags")
+	createRgpCmd.Flags().BoolVar(&mockRgp, "mock", false, "Prints resource spec instead of creating")
+	createRgpCtl.AddSpecFlags(createRgpCmd)
+	createCmd.AddCommand(createRgpCmd)
 }
