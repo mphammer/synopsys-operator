@@ -90,6 +90,18 @@ var updateAlertCmd = &cobra.Command{
 	},
 }
 
+var updateRgpCmd = &cobra.Command{
+	Use:   "rgp NAMESPACE",
+	Short: "Describe an instance of Rgp",
+	Args: func(cmd *cobra.Command, args []string) error {
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		log.Debugf("Updating an Rgp\n")
+		return nil
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(updateCmd)
 
@@ -98,4 +110,5 @@ func init() {
 	updateCmd.AddCommand(updateBlackduckCmd)
 	updateCmd.AddCommand(updateOpsSightCmd)
 	updateCmd.AddCommand(updateAlertCmd)
+	updateCmd.AddCommand(updateRgpCmd)
 }
