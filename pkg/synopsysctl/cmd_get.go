@@ -121,6 +121,29 @@ var getAlertCmd = &cobra.Command{
 	},
 }
 
+// getRgpCmd lists Rgps in the cluster
+var getRgpCmd = &cobra.Command{
+	Use:     "rgp",
+	Aliases: []string{"rgps"},
+	Short:   "Get a list of Rgps in the cluster",
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 0 {
+			return fmt.Errorf("This command accepts 0 arguments")
+		}
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		log.Debugf("Getting Rgps\n")
+		out, err := RunKubeCmd("get", "rgps")
+		if err != nil {
+			log.Errorf("Error getting Rgps with KubeCmd: %s", out)
+			return nil
+		}
+		fmt.Printf("%+v", out)
+		return nil
+	},
+}
+
 func init() {
 	getCmd.DisableFlagParsing = true // lets getCmd pass flags to kube/oc
 	rootCmd.AddCommand(getCmd)
@@ -129,4 +152,5 @@ func init() {
 	getCmd.AddCommand(getBlackduckCmd)
 	getCmd.AddCommand(getOpsSightCmd)
 	getCmd.AddCommand(getAlertCmd)
+	getCmd.AddCommand(getRgpCmd)
 }
