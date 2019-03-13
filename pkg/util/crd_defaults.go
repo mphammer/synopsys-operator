@@ -25,6 +25,7 @@ import (
 	alertv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
 	blackduckv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
 	opssightv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/opssight/v1"
+	rgpv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/rgp/v1"
 	//samplev1 "github.com/blackducksoftware/synopsys-operator/pkg/api/sample/v1"
 )
 
@@ -369,5 +370,15 @@ func GetAlertDefaultValue2() *alertv1.AlertSpec {
 		StandAlone:        &standAlone,
 		AlertMemory:       "512M",
 		CfsslMemory:       "640M",
+	}
+}
+
+// GetRgpDefaultValue creates an RGP crd configuration object with defaults
+func GetRgpDefaultValue() *rgpv1.RgpSpec {
+	return &rgpv1.RgpSpec{
+		Namespace:    "rgp-test",
+		StorageClass: "storage-class",
+		IngressClass: "ingress-class",
+		IngressHost:  "ingress-host",
 	}
 }
