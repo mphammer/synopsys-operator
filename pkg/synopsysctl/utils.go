@@ -34,6 +34,7 @@ import (
 	alertv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
 	blackduckv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
 	opssightv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/opssight/v1"
+	rgpv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/rgp/v1"
 	blackduckclientset "github.com/blackducksoftware/synopsys-operator/pkg/blackduck/client/clientset/versioned"
 	opssightclientset "github.com/blackducksoftware/synopsys-operator/pkg/opssight/client/clientset/versioned"
 	rgpclientset "github.com/blackducksoftware/synopsys-operator/pkg/rgp/client/clientset/versioned"
@@ -105,6 +106,24 @@ func updateAlertSpecInCluster(namespace string, crd *alertv1.Alert) error {
 	_, err := alertClient.SynopsysV1().Alerts(namespace).Update(crd)
 	if err != nil {
 		return fmt.Errorf("Error Editing Alert: %+v", err)
+	}
+	return nil
+}
+
+// getRgpSpecFromCluster returns the CRD for an Rgp in namespace
+func getRgpSpecFromCluster(namespace string) (*rgpv1.Rgp, error) {
+	rgp, err := rgpClient.SynopsysV1().Rgps(namespace).Get(namespace, metav1.GetOptions{})
+	if err != nil {
+		return rgp, fmt.Errorf("Error Editing Rgp: %+v", err)
+	}
+	return rgp, nil
+}
+
+// updateRgpSpecInCluster updates the CRD for an Rgp
+func updateRgpSpecInCluster(namespace string, crd *rgpv1.Rgp) error {
+	_, err := rgpClient.SynopsysV1().Rgps(namespace).Update(crd)
+	if err != nil {
+		return fmt.Errorf("Error Editing Rgp: %+v", err)
 	}
 	return nil
 }

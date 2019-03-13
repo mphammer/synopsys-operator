@@ -29,8 +29,10 @@ import (
 	alertv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
 	blackduckv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
 	opssightv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/opssight/v1"
+	rgpv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/rgp/v1"
 	blackduck "github.com/blackducksoftware/synopsys-operator/pkg/blackduck"
 	opssight "github.com/blackducksoftware/synopsys-operator/pkg/opssight"
+	rgp "github.com/blackducksoftware/synopsys-operator/pkg/rgp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -39,6 +41,7 @@ import (
 var editBlackduckCtl ResourceCtl
 var editOpsSightCtl ResourceCtl
 var editAlertCtl ResourceCtl
+var editRgpCtl ResourceCtl
 
 // editCmd edits non-synopsys resources
 var editCmd = &cobra.Command{
@@ -83,18 +86,18 @@ var editBlackduckCmd = &cobra.Command{
 		// Update spec with flags or pipe to KubeCmd
 		flagset := cmd.Flags()
 		if flagset.NFlag() != 0 {
-			bd, err := getBlackduckSpecFromCluster(blackduckName)
+			blackDuckCRD, err := getBlackduckSpecFromCluster(blackduckName)
 			if err != nil {
 				log.Errorf("%s", err)
 				return nil
 			}
-			editBlackduckCtl.SetSpec(bd.Spec)
+			editBlackduckCtl.SetSpec(blackDuckCRD.Spec)
 			// Update Spec with User's Flags
 			editBlackduckCtl.SetChangedFlags(flagset)
 			// Update Blackduck with Updates
 			blackduckSpec := editBlackduckCtl.GetSpec().(blackduckv1.BlackduckSpec)
-			bd.Spec = blackduckSpec
-			err = updateBlackduckSpecInCluster(blackduckName, bd)
+			blackDuckCRD.Spec = blackduckSpec
+			err = updateBlackduckSpecInCluster(blackduckName, blackDuckCRD)
 			if err != nil {
 				log.Errorf("%s", err)
 				return nil
@@ -129,7 +132,7 @@ var editBlackduckAddPVCCmd = &cobra.Command{
 		blackduckName := args[0]
 		pvcName := args[1]
 		// Get Blackduck Spec
-		bd, err := getBlackduckSpecFromCluster(blackduckName)
+		blackDuckCRD, err := getBlackduckSpecFromCluster(blackduckName)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
@@ -140,9 +143,9 @@ var editBlackduckAddPVCCmd = &cobra.Command{
 			Size:         blackduckPVCSize,
 			StorageClass: blackduckPVCStorageClass,
 		}
-		bd.Spec.PVC = append(bd.Spec.PVC, newPVC)
+		blackDuckCRD.Spec.PVC = append(blackDuckCRD.Spec.PVC, newPVC)
 		// Update Blackduck with PVC
-		err = updateBlackduckSpecInCluster(blackduckName, bd)
+		err = updateBlackduckSpecInCluster(blackduckName, blackDuckCRD)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
@@ -167,15 +170,15 @@ var editBlackduckAddEnvironCmd = &cobra.Command{
 		blackduckName := args[0]
 		environ := args[1]
 		// Get Blackduck Spec
-		bd, err := getBlackduckSpecFromCluster(blackduckName)
+		blackDuckCRD, err := getBlackduckSpecFromCluster(blackduckName)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
 		}
 		// Add Environ to Spec
-		bd.Spec.Environs = append(bd.Spec.Environs, environ)
+		blackDuckCRD.Spec.Environs = append(blackDuckCRD.Spec.Environs, environ)
 		// Update Blackduck with Environ
-		err = updateBlackduckSpecInCluster(blackduckName, bd)
+		err = updateBlackduckSpecInCluster(blackduckName, blackDuckCRD)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
@@ -200,15 +203,15 @@ var editBlackduckAddRegistryCmd = &cobra.Command{
 		blackduckName := args[0]
 		registry := args[1]
 		// Get Blackduck Spec
-		bd, err := getBlackduckSpecFromCluster(blackduckName)
+		blackDuckCRD, err := getBlackduckSpecFromCluster(blackduckName)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
 		}
 		// Add Registry to Spec
-		bd.Spec.ImageRegistries = append(bd.Spec.ImageRegistries, registry)
+		blackDuckCRD.Spec.ImageRegistries = append(blackDuckCRD.Spec.ImageRegistries, registry)
 		// Update Blackduck with Environ
-		err = updateBlackduckSpecInCluster(blackduckName, bd)
+		err = updateBlackduckSpecInCluster(blackduckName, blackDuckCRD)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
@@ -234,7 +237,7 @@ var editBlackduckAddUIDCmd = &cobra.Command{
 		uidKey := args[1]
 		uidVal := args[2]
 		// Get Blackduck Spec
-		bd, err := getBlackduckSpecFromCluster(blackduckName)
+		blackDuckCRD, err := getBlackduckSpecFromCluster(blackduckName)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
@@ -244,12 +247,12 @@ var editBlackduckAddUIDCmd = &cobra.Command{
 		if err != nil {
 			fmt.Printf("Couldn't convert UID_VAL to int: %s\n", err)
 		}
-		if bd.Spec.ImageUIDMap == nil {
-			bd.Spec.ImageUIDMap = make(map[string]int64)
+		if blackDuckCRD.Spec.ImageUIDMap == nil {
+			blackDuckCRD.Spec.ImageUIDMap = make(map[string]int64)
 		}
-		bd.Spec.ImageUIDMap[uidKey] = intUIDVal
+		blackDuckCRD.Spec.ImageUIDMap[uidKey] = intUIDVal
 		// Update Blackduck with UID mapping
-		err = updateBlackduckSpecInCluster(blackduckName, bd)
+		err = updateBlackduckSpecInCluster(blackduckName, blackDuckCRD)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
@@ -277,18 +280,18 @@ var editOpsSightCmd = &cobra.Command{
 		// Update spec with flags or pipe to KubeCmd
 		flagset := cmd.Flags()
 		if flagset.NFlag() != 0 {
-			ops, err := getOpsSightSpecFromCluster(opsSightName)
+			opsSightCRD, err := getOpsSightSpecFromCluster(opsSightName)
 			if err != nil {
 				log.Errorf("%s", err)
 				return nil
 			}
-			editOpsSightCtl.SetSpec(ops.Spec)
+			editOpsSightCtl.SetSpec(opsSightCRD.Spec)
 			// Update Spec with User's Flags
 			editOpsSightCtl.SetChangedFlags(flagset)
 			// Update OpsSight with Updates
 			opsSightSpec := editOpsSightCtl.GetSpec().(opssightv1.OpsSightSpec)
-			ops.Spec = opsSightSpec
-			err = updateOpsSightSpecInCluster(opsSightName, ops)
+			opsSightCRD.Spec = opsSightSpec
+			err = updateOpsSightSpecInCluster(opsSightName, opsSightCRD)
 			if err != nil {
 				log.Errorf("%s", err)
 				return nil
@@ -321,7 +324,7 @@ var editOpsSightAddRegistryCmd = &cobra.Command{
 		regUser := args[2]
 		regPass := args[3]
 		// Get OpsSight Spec
-		ops, err := getOpsSightSpecFromCluster(opsSightName)
+		opsSightCRD, err := getOpsSightSpecFromCluster(opsSightName)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
@@ -332,9 +335,9 @@ var editOpsSightAddRegistryCmd = &cobra.Command{
 			User:     regUser,
 			Password: regPass,
 		}
-		ops.Spec.ScannerPod.ImageFacade.InternalRegistries = append(ops.Spec.ScannerPod.ImageFacade.InternalRegistries, newReg)
+		opsSightCRD.Spec.ScannerPod.ImageFacade.InternalRegistries = append(opsSightCRD.Spec.ScannerPod.ImageFacade.InternalRegistries, newReg)
 		// Update OpsSight with Internal Registry
-		err = updateOpsSightSpecInCluster(opsSightName, ops)
+		err = updateOpsSightSpecInCluster(opsSightName, opsSightCRD)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
@@ -358,15 +361,15 @@ var editOpsSightAddHostCmd = &cobra.Command{
 		opssightName := args[0]
 		host := args[1]
 		// Get OpsSight Spec
-		ops, err := getOpsSightSpecFromCluster(opssightName)
+		opsSightCRD, err := getOpsSightSpecFromCluster(opssightName)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
 		}
 		// Add Host to Spec
-		ops.Spec.Blackduck.Hosts = append(ops.Spec.Blackduck.Hosts, host)
+		opsSightCRD.Spec.Blackduck.Hosts = append(opsSightCRD.Spec.Blackduck.Hosts, host)
 		// Update OpsSight with Host
-		err = updateOpsSightSpecInCluster(opssightName, ops)
+		err = updateOpsSightSpecInCluster(opssightName, opsSightCRD)
 		if err != nil {
 			log.Errorf("%s", err)
 			return nil
@@ -394,18 +397,18 @@ var editAlertCmd = &cobra.Command{
 		// Update spec with flags or pipe to KubeCmd
 		flagset := cmd.Flags()
 		if flagset.NFlag() != 0 {
-			alt, err := getAlertSpecFromCluster(alertName)
+			alertCRD, err := getAlertSpecFromCluster(alertName)
 			if err != nil {
 				log.Errorf("Get Spec: %s", err)
 				return nil
 			}
-			editAlertCtl.SetSpec(alt.Spec)
+			editAlertCtl.SetSpec(alertCRD.Spec)
 			// Update Spec with User's Flags
 			editAlertCtl.SetChangedFlags(flagset)
 			// Update Alert with Updates
 			alertSpec := editAlertCtl.GetSpec().(alertv1.AlertSpec)
-			alt.Spec = alertSpec
-			err = updateAlertSpecInCluster(alertName, alt)
+			alertCRD.Spec = alertSpec
+			err = updateAlertSpecInCluster(alertName, alertCRD)
 			if err != nil {
 				log.Errorf("Update Spec: %s", err)
 				return nil
@@ -421,11 +424,58 @@ var editAlertCmd = &cobra.Command{
 	},
 }
 
+// editRgpCmd edits an Rgp by updating the spec
+// or using the kube/oc editor
+var editRgpCmd = &cobra.Command{
+	Use:   "rgp NAMESPACE",
+	Short: "Edit an instance of Rgp",
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 1 {
+			return fmt.Errorf("This command only accepts 1 argument")
+		}
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		log.Debugf("Editing an Rgp\n")
+		// Read Commandline Parameters
+		rgpName := args[0]
+
+		// Update spec with flags or pipe to KubeCmd
+		flagset := cmd.Flags()
+		if flagset.NFlag() != 0 {
+			rgpCRD, err := getRgpSpecFromCluster(rgpName)
+			if err != nil {
+				log.Errorf("Get Spec: %s", err)
+				return nil
+			}
+			editRgpCtl.SetSpec(rgpCRD.Spec)
+			// Update Spec with User's Flags
+			editRgpCtl.SetChangedFlags(flagset)
+			// Update Rgp with Updates
+			rgpSpec := editRgpCtl.GetSpec().(rgpv1.RgpSpec)
+			rgpCRD.Spec = rgpSpec
+			err = updateRgpSpecInCluster(rgpName, rgpCRD)
+			if err != nil {
+				log.Errorf("Update Spec: %s", err)
+				return nil
+			}
+		} else {
+			err := RunKubeEditorCmd("edit", "rgp", rgpName, "-n", rgpName)
+			if err != nil {
+				log.Errorf("Error Editing the Rgp: %s", err)
+				return nil
+			}
+		}
+		return nil
+	},
+}
+
 func init() {
 	// initialize global resource ctl structs for commands to use
 	editBlackduckCtl = blackduck.NewBlackduckCtl()
 	editOpsSightCtl = opssight.NewOpsSightCtl()
 	editAlertCtl = alert.NewAlertCtl()
+	editRgpCtl = rgp.NewRgpCtl()
 
 	editCmd.DisableFlagParsing = true // lets editCmd pass flags to kube/oc
 	rootCmd.AddCommand(editCmd)
@@ -454,4 +504,8 @@ func init() {
 	// Add Alert Edit Comamnds
 	editAlertCtl.AddSpecFlags(editAlertCmd)
 	editCmd.AddCommand(editAlertCmd)
+
+	// Add Rgp Edit Comamnds
+	editRgpCtl.AddSpecFlags(editRgpCmd)
+	editCmd.AddCommand(editRgpCmd)
 }
