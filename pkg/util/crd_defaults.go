@@ -377,8 +377,8 @@ func GetAlertDefaultValue2() *alertv1.AlertSpec {
 func GetRgpDefaultValue() *rgpv1.RgpSpec {
 	return &rgpv1.RgpSpec{
 		Namespace:    "rgp-test",
-		StorageClass: "storage-class",
-		IngressClass: "ingress-class",
-		IngressHost:  "ingress-host",
+		StorageClass: "",
+		IngressClass: "",
+		IngressHost:  "dev.synopsys.com",
 	}
 }
