@@ -127,6 +127,31 @@ var describeAlertCmd = &cobra.Command{
 	},
 }
 
+// describeRgpCmd prints the CRD for an Rgp
+var describeRgpCmd = &cobra.Command{
+	Use:   "rgp NAMESPACE",
+	Short: "Describe an instance of Rgp",
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 1 {
+			return fmt.Errorf("This command only accepts 1 argument")
+		}
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		log.Debugf("Describing an Rgp\n")
+		// Read Commandline Parameters
+		rgpNamespace := args[0]
+
+		out, err := RunKubeCmd("describe", "rgp", rgpNamespace, "-n", rgpNamespace)
+		if err != nil {
+			log.Errorf("Error Describing the Rgp: %s\n", out)
+			return nil
+		}
+		fmt.Printf("%+v", out)
+		return nil
+	},
+}
+
 func init() {
 	describeCmd.DisableFlagParsing = true // lets describeCmd pass flags to kube/oc
 	rootCmd.AddCommand(describeCmd)
@@ -135,4 +160,5 @@ func init() {
 	describeCmd.AddCommand(describeBlackduckCmd)
 	describeCmd.AddCommand(describeOpsSightCmd)
 	describeCmd.AddCommand(describeAlertCmd)
+	describeCmd.AddCommand(describeRgpCmd)
 }
