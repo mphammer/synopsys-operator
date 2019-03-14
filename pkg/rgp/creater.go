@@ -143,7 +143,7 @@ func (c *Creater) Create(spec *v1.RgpSpec) error {
 		return err
 	}
 
-	err = c.dbInit(spec.Namespace)
+	err = c.dbInit(spec.Namespace, pw)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -183,6 +183,11 @@ func (c *Creater) createIngress(spec *v1.RgpSpec) error {
 			},
 		},
 		Spec: v1beta1.IngressSpec{
+			TLS: []v1beta1.IngressTLS{
+				{
+					Hosts: []string{spec.IngressHost},
+				},
+			},
 			Rules: []v1beta1.IngressRule{
 				{
 					Host: spec.IngressHost,
@@ -233,7 +238,7 @@ func (c *Creater) createIngress(spec *v1.RgpSpec) error {
 							{
 								Path: "/reporting/rs",
 								Backend: v1beta1.IngressBackend{
-									ServiceName: "rp-issue-manager",
+									ServiceName: "report-service",
 									ServicePort: intstr.FromInt(7979),
 								},
 							},

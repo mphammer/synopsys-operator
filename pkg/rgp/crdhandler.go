@@ -22,9 +22,11 @@ under the License.
 package rgp
 
 import (
+	"fmt"
 	"github.com/blackducksoftware/synopsys-operator/pkg/api/rgp/v1"
 	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
 	grclientset "github.com/blackducksoftware/synopsys-operator/pkg/rgp/client/clientset/versioned"
+	"github.com/blackducksoftware/synopsys-operator/pkg/util"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -52,23 +54,52 @@ func NewHandler(config *protoform.Config, kubeConfig *rest.Config, kubeClient *k
 
 // ObjectCreated will be called for create events
 func (h *Handler) ObjectCreated(obj interface{}) {
+	var err error
 	log.Debugf("ObjectCreated: %+v", obj)
 	gr, ok := obj.(*v1.Rgp)
 	if !ok {
 		log.Error("Unable to cast object")
 		return
 	}
+
+	if len(gr.Status.State) > 0 {
+		return
+	}
+
 	log.Info(gr.Name)
+
+	gr.Status.State = "Creating"
+	gr, err = h.grClient.SynopsysV1().Rgps(h.config.Namespace).Update(gr)
+	if err != nil{
+		log.Error(err.Error())
+		return
+	}
+
 	creater := NewCreater(h.kubeConfig, h.kubeClient, h.grClient)
-	err := creater.Create(&gr.Spec)
+	err = creater.Create(&gr.Spec)
 	if err != nil {
 		log.Error(err.Error())
+		gr.Status.ErrorMessage = err.Error()
+		gr.Status.State = "Error"
+	} else {
+		gr.Status.Fqdn = fmt.Sprintf("%s/reporting",gr.Spec.IngressHost)
+		gr.Status.State = "Running"
 	}
+
+	_, err = h.grClient.SynopsysV1().Rgps(h.config.Namespace).Update(gr)
+	if err != nil{
+		log.Error(err.Error())
+	}
+
 }
 
 // ObjectDeleted will be called for delete events
 func (h *Handler) ObjectDeleted(name string) {
-
+	log.Debugf("ObjectDeleted: %s", name)
+	err := util.DeleteNamespace(h.kubeClient, name)
+	if err != nil {
+		log.Error(err.Error())
+	}
 }
 
 // ObjectUpdated will be called for update events
