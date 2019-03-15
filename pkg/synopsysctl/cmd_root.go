@@ -53,6 +53,26 @@ var rootCmd = &cobra.Command{
 		}
 		return nil
 	},
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		flagset := cmd.Flags()
+
+		if flagset.Changed("cluster") {
+			log.Warnf("Flag %s is Not Implemented", "cluster")
+		}
+		if flagset.Changed("kubeconfig") {
+			log.Warnf("Flag %s is Not Implemented", "kubeconfig")
+		}
+		if flagset.Changed("context") {
+			log.Warnf("Flag %s is Not Implemented", "context")
+		}
+		if flagset.Changed("insecure-skip-tls-verify") {
+			log.Warnf("Flag %s is Not Implemented", "insecure-skip-tls-verify")
+		}
+		if flagset.Changed("log-level") {
+			log.Warnf("Flag %s is Not Implemented", "log-level")
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		log.Debugf("Running Non-Synopsysctl Command\n")
 		out, err := RunKubeCmd(args...)
