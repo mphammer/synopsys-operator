@@ -25,12 +25,13 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"math"
 	"net/http"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/blackducksoftware/synopsys-operator/pkg/api"
 	blackduckapi "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
@@ -112,7 +113,7 @@ func (hc *Creater) Ensure(blackduck *blackduckapi.Blackduck) error {
 		}
 
 		// Get non postgres components
-		cpList, err := hc.getComponents(blackduck)
+		cpList, err := hc.GetComponents(blackduck)
 		if err != nil {
 			return err
 		}

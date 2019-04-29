@@ -70,7 +70,7 @@ func (hc *Creater) getPostgresComponents(blackduck *blackduckapi.Blackduck) (*ap
 }
 
 // GetComponents returns the blackduck components
-func (hc *Creater) getComponents(blackduck *blackduckapi.Blackduck) (*api.ComponentList, error) {
+func (hc *Creater) GetComponents(blackduck *blackduckapi.Blackduck) (*api.ComponentList, error) {
 
 	componentList := &api.ComponentList{}
 
@@ -88,13 +88,16 @@ func (hc *Creater) getComponents(blackduck *blackduckapi.Blackduck) (*api.Compon
 	//Secrets
 	// nginx certificatea
 	cert, key, _ := hc.getTLSCertKeyOrCreate(blackduck)
-	secret, err := util.GetSecret(hc.KubeClient, hc.Config.Namespace, "blackduck-secret")
-	if err != nil {
-		log.Errorf("unable to find the Synopsys Operator blackduck-secret in %s namespace due to %+v", hc.Config.Namespace, err)
-		return nil, err
+	if !hc.Config.DryRun {
+		secret, err := util.GetSecret(hc.KubeClient, hc.Config.Namespace, "blackduck-secret")
+		if err != nil {
+			log.Errorf("unable to find the Synopsys Operator blackduck-secret in %s namespace due to %+v", hc.Config.Namespace, err)
+			return nil, err
+		}
+		componentList.Secrets = append(componentList.Secrets, containerCreater.GetSecrets(cert, key, secret.Data["SEAL_KEY"])...)
+	} else {
+		componentList.Secrets = append(componentList.Secrets, containerCreater.GetSecrets(cert, key, []byte{})...)
 	}
-
-	componentList.Secrets = append(componentList.Secrets, containerCreater.GetSecrets(cert, key, secret.Data["SEAL_KEY"])...)
 
 	// cfssl
 	imageName := containerCreater.GetImageTag("blackduck-cfssl")

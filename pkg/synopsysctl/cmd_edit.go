@@ -27,9 +27,9 @@ import (
 	"strings"
 
 	alert "github.com/blackducksoftware/synopsys-operator/pkg/alert"
-	alertv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
-	blackduckv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
-	opssightv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/opssight/v1"
+	alertapi "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
+	blackduckapi "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
+	opssightapi "github.com/blackducksoftware/synopsys-operator/pkg/api/opssight/v1"
 	blackduck "github.com/blackducksoftware/synopsys-operator/pkg/blackduck"
 	opssight "github.com/blackducksoftware/synopsys-operator/pkg/opssight"
 	operatorutil "github.com/blackducksoftware/synopsys-operator/pkg/util"
@@ -41,6 +41,10 @@ import (
 var editBlackduckCtl ResourceCtl
 var editOpsSightCtl ResourceCtl
 var editAlertCtl ResourceCtl
+
+// Flags for using mock mode - doesn't deploy
+var editMockFormat string
+var editKubeMockFormat string
 
 // editCmd edits non-synopsys resources
 var editCmd = &cobra.Command{
@@ -82,16 +86,20 @@ var editBlackduckCmd = &cobra.Command{
 			// Update Spec with User's Flags
 			editBlackduckCtl.SetChangedFlags(flagset)
 			// Update Blackduck with Updates
-			blackduckSpec := editBlackduckCtl.GetSpec().(blackduckv1.BlackduckSpec)
+			blackduckSpec := editBlackduckCtl.GetSpec().(blackduckapi.BlackduckSpec)
 			// merge environs
 			blackduckSpec.Environs = operatorutil.MergeEnvSlices(blackduckSpec.Environs, bd.Spec.Environs)
 			bd.Spec = blackduckSpec
-			_, err = operatorutil.UpdateBlackduck(blackduckClient, blackduckName, bd)
+			err = ctlUpdateBlackDuck(bd, cmd.LocalFlags().Lookup("mock").Changed, editMockFormat, cmd.LocalFlags().Lookup("kube-mock").Changed, editKubeMockFormat)
 			if err != nil {
-				log.Errorf("error updating the %s Black Duck instance due to %+v", blackduckName, err)
+				log.Errorf("failed to edit Black Duck: %s", err)
 				return nil
 			}
 		} else {
+			if cmd.LocalFlags().Lookup("mock").Changed || cmd.LocalFlags().Lookup("kube-mock").Changed {
+				log.Errorf("edits must be entered through flags for mock mode")
+				return nil
+			}
 			err := RunKubeEditorCmd(restconfig, kube, openshift, "edit", "blackduck", blackduckName, "-n", blackduckName)
 			if err != nil {
 				log.Errorf("error editing the Black Duck: %s", err)
@@ -129,16 +137,16 @@ var editBlackduckAddPVCCmd = &cobra.Command{
 			return nil
 		}
 		// Add PVC to Spec
-		newPVC := blackduckv1.PVC{
+		newPVC := blackduckapi.PVC{
 			Name:         pvcName,
 			Size:         blackduckPVCSize,
 			StorageClass: blackduckPVCStorageClass,
 		}
 		bd.Spec.PVC = append(bd.Spec.PVC, newPVC)
 		// Update Blackduck with PVC
-		_, err = operatorutil.UpdateBlackduck(blackduckClient, blackduckName, bd)
+		err = ctlUpdateBlackDuck(bd, cmd.LocalFlags().Lookup("mock").Changed, editMockFormat, cmd.LocalFlags().Lookup("kube-mock").Changed, editKubeMockFormat)
 		if err != nil {
-			log.Errorf("error updating the %s Black Duck instance due to %+v", blackduckName, err)
+			log.Errorf("failed to edit Black Duck: %s", err)
 			return nil
 		}
 		log.Infof("successfully updated the '%s' Black Duck instance", blackduckName)
@@ -171,9 +179,9 @@ var editBlackduckAddEnvironCmd = &cobra.Command{
 		// Merge Environ to Spec
 		bd.Spec.Environs = operatorutil.MergeEnvSlices(strings.Split(environ, ","), bd.Spec.Environs)
 		// Update Blackduck with Environ
-		_, err = operatorutil.UpdateBlackduck(blackduckClient, blackduckName, bd)
+		err = ctlUpdateBlackDuck(bd, cmd.LocalFlags().Lookup("mock").Changed, editMockFormat, cmd.LocalFlags().Lookup("kube-mock").Changed, editKubeMockFormat)
 		if err != nil {
-			log.Errorf("error updating the %s Black Duck instance due to %+v", blackduckName, err)
+			log.Errorf("failed to edit Black Duck: %s", err)
 			return nil
 		}
 		log.Infof("successfully updated the '%s' Black Duck instance", blackduckName)
@@ -206,9 +214,9 @@ var editBlackduckAddRegistryCmd = &cobra.Command{
 		// Add Registry to Spec
 		bd.Spec.ImageRegistries = append(bd.Spec.ImageRegistries, registry)
 		// Update Blackduck with Environ
-		_, err = operatorutil.UpdateBlackduck(blackduckClient, blackduckName, bd)
+		err = ctlUpdateBlackDuck(bd, cmd.LocalFlags().Lookup("mock").Changed, editMockFormat, cmd.LocalFlags().Lookup("kube-mock").Changed, editKubeMockFormat)
 		if err != nil {
-			log.Errorf("error updating the %s Black Duck instance due to %+v", blackduckName, err)
+			log.Errorf("failed to edit Black Duck: %s", err)
 			return nil
 		}
 		log.Infof("successfully updated the '%s' Black Duck instance", blackduckName)
@@ -249,9 +257,9 @@ var editBlackduckAddUIDCmd = &cobra.Command{
 		}
 		bd.Spec.ImageUIDMap[uidKey] = intUIDVal
 		// Update Blackduck with UID mapping
-		_, err = operatorutil.UpdateBlackduck(blackduckClient, blackduckName, bd)
+		err = ctlUpdateBlackDuck(bd, cmd.LocalFlags().Lookup("mock").Changed, editMockFormat, cmd.LocalFlags().Lookup("kube-mock").Changed, editKubeMockFormat)
 		if err != nil {
-			log.Errorf("error updating the %s Black Duck instance due to %+v", blackduckName, err)
+			log.Errorf("failed to edit Black Duck: %s", err)
 			return nil
 		}
 		log.Infof("successfully edited Black Duck: '%s'", blackduckName)
@@ -286,14 +294,18 @@ var editOpsSightCmd = &cobra.Command{
 			// Update Spec with User's Flags
 			editOpsSightCtl.SetChangedFlags(flagset)
 			// Update OpsSight with Updates
-			opsSightSpec := editOpsSightCtl.GetSpec().(opssightv1.OpsSightSpec)
+			opsSightSpec := editOpsSightCtl.GetSpec().(opssightapi.OpsSightSpec)
 			ops.Spec = opsSightSpec
-			_, err = operatorutil.UpdateOpsSight(opssightClient, opsSightName, ops)
+			err = ctlUpdateOpsSight(ops, cmd.LocalFlags().Lookup("mock").Changed, editMockFormat, cmd.LocalFlags().Lookup("kube-mock").Changed, editKubeMockFormat)
 			if err != nil {
-				log.Errorf("%s", err)
+				log.Errorf("failed to edit Black Duck: %s", err)
 				return nil
 			}
 		} else {
+			if cmd.LocalFlags().Lookup("mock").Changed || cmd.LocalFlags().Lookup("kube-mock").Changed {
+				log.Errorf("edits must be entered through flags for mock mode")
+				return nil
+			}
 			err := RunKubeEditorCmd(restconfig, kube, openshift, "edit", "opssight", opsSightName, "-n", opsSightName)
 			if err != nil {
 				log.Errorf("error Editing the OpsSight: %s", err)
@@ -330,16 +342,16 @@ var editOpsSightAddRegistryCmd = &cobra.Command{
 			return nil
 		}
 		// Add Internal Registry to Spec
-		newReg := opssightv1.RegistryAuth{
+		newReg := opssightapi.RegistryAuth{
 			URL:      regURL,
 			User:     regUser,
 			Password: regPass,
 		}
 		ops.Spec.ScannerPod.ImageFacade.InternalRegistries = append(ops.Spec.ScannerPod.ImageFacade.InternalRegistries, &newReg)
 		// Update OpsSight with Internal Registry
-		_, err = operatorutil.UpdateOpsSight(opssightClient, opsSightName, ops)
+		err = ctlUpdateOpsSight(ops, cmd.LocalFlags().Lookup("mock").Changed, editMockFormat, cmd.LocalFlags().Lookup("kube-mock").Changed, editKubeMockFormat)
 		if err != nil {
-			log.Errorf("%s", err)
+			log.Errorf("failed to edit Black Duck: %s", err)
 			return nil
 		}
 		log.Infof("successfully edited OpsSight: '%s'", opsSightName)
@@ -371,7 +383,7 @@ var editOpsSightAddHostCmd = &cobra.Command{
 			return nil
 		}
 		// Add Host to Spec
-		host := opssightv1.Host{}
+		host := opssightapi.Host{}
 		host.Domain = domain
 		intPort, err := strconv.ParseInt(port, 0, 64)
 		if err != nil {
@@ -380,9 +392,9 @@ var editOpsSightAddHostCmd = &cobra.Command{
 		host.Port = int(intPort)
 		ops.Spec.Blackduck.ExternalHosts = append(ops.Spec.Blackduck.ExternalHosts, &host)
 		// Update OpsSight with Host
-		_, err = operatorutil.UpdateOpsSight(opssightClient, opsSightName, ops)
+		err = ctlUpdateOpsSight(ops, cmd.LocalFlags().Lookup("mock").Changed, editMockFormat, cmd.LocalFlags().Lookup("kube-mock").Changed, editKubeMockFormat)
 		if err != nil {
-			log.Errorf("%s", err)
+			log.Errorf("failed to edit Black Duck: %s", err)
 			return nil
 		}
 		log.Infof("successfully edited OpsSight: '%s'", opsSightName)
@@ -408,12 +420,12 @@ var editAlertCmd = &cobra.Command{
 		// Update spec with flags or pipe to KubeCmd
 		flagset := cmd.LocalFlags()
 		if flagset.NFlag() != 0 {
-			alt, err := operatorutil.GetAlert(alertClient, alertName, alertName)
+			alert, err := operatorutil.GetAlert(alertClient, alertName, alertName)
 			if err != nil {
 				log.Errorf("error getting an Alert %s instance due to %+v", alertName, err)
 				return nil
 			}
-			err = editAlertCtl.SetSpec(alt.Spec)
+			err = editAlertCtl.SetSpec(alert.Spec)
 			if err != nil {
 				log.Errorf("cannot set an existing %s Alert instance to spec due to %+v", alertName, err)
 				return nil
@@ -421,16 +433,20 @@ var editAlertCmd = &cobra.Command{
 			// Update Spec with User's Flags
 			editAlertCtl.SetChangedFlags(flagset)
 			// Update Alert with Updates
-			alertSpec := editAlertCtl.GetSpec().(alertv1.AlertSpec)
+			alertSpec := editAlertCtl.GetSpec().(alertapi.AlertSpec)
 			// merge environs
-			alertSpec.Environs = operatorutil.MergeEnvSlices(alertSpec.Environs, alt.Spec.Environs)
-			alt.Spec = alertSpec
-			_, err = operatorutil.UpdateAlert(alertClient, alertName, alt)
+			alertSpec.Environs = operatorutil.MergeEnvSlices(alertSpec.Environs, alert.Spec.Environs)
+			alert.Spec = alertSpec
+			err = ctlUpdateAlert(alert, cmd.LocalFlags().Lookup("mock").Changed, editMockFormat, cmd.LocalFlags().Lookup("kube-mock").Changed, editKubeMockFormat)
 			if err != nil {
-				log.Errorf("error updating the %s Alert instance due to %+v", alertName, err)
+				log.Errorf("failed to edit Black Duck: %s", err)
 				return nil
 			}
 		} else {
+			if cmd.LocalFlags().Lookup("mock").Changed || cmd.LocalFlags().Lookup("kube-mock").Changed {
+				log.Errorf("edits must be entered through flags for mock mode")
+				return nil
+			}
 			err := RunKubeEditorCmd(restconfig, kube, openshift, "edit", "alert", alertName, "-n", alertName)
 			if err != nil {
 				log.Errorf("error editing the Alert: %s", err)
@@ -452,6 +468,8 @@ func init() {
 	rootCmd.AddCommand(editCmd)
 
 	// Add Blackduck Edit Commands
+	editBlackduckCmd.Flags().StringVar(&editMockFormat, "mock", editMockFormat, "Prints the new CRD resource spec in the specified format instead of editing it [json/yaml]")
+	editBlackduckCmd.Flags().StringVar(&editKubeMockFormat, "kube-mock", editKubeMockFormat, "Prints the new Kubernetes resource specs in the specified format instead of editing them [json/yaml]")
 	editBlackduckCtl.AddSpecFlags(editBlackduckCmd, true)
 	editCmd.AddCommand(editBlackduckCmd)
 
@@ -466,6 +484,8 @@ func init() {
 	editBlackduckCmd.AddCommand(editBlackduckAddUIDCmd)
 
 	// Add OpsSight Edit Commands
+	editOpsSightCmd.Flags().StringVar(&editMockFormat, "mock", editMockFormat, "Prints the new CRD resource spec in the specified format instead of editing it [json/yaml]")
+	editOpsSightCmd.Flags().StringVar(&editKubeMockFormat, "kube-mock", editKubeMockFormat, "Prints the new Kubernetes resource specs in the specified format instead of editing them [json/yaml]")
 	editOpsSightCtl.AddSpecFlags(editOpsSightCmd, true)
 	editCmd.AddCommand(editOpsSightCmd)
 
@@ -473,6 +493,8 @@ func init() {
 	editOpsSightCmd.AddCommand(editOpsSightAddHostCmd)
 
 	// Add Alert Edit Comamnds
+	editAlertCmd.Flags().StringVar(&editMockFormat, "mock", editMockFormat, "Prints the new CRD resource spec in the specified format instead of editing it [json/yaml]")
+	editAlertCmd.Flags().StringVar(&editKubeMockFormat, "kube-mock", editKubeMockFormat, "Prints the new Kubernetes resource specs in the specified format instead of editing them [json/yaml]")
 	editAlertCtl.AddSpecFlags(editAlertCmd, true)
 	editCmd.AddCommand(editAlertCmd)
 }

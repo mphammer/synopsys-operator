@@ -30,6 +30,9 @@ import (
 	horizoncomponents "github.com/blackducksoftware/horizon/pkg/components"
 	"github.com/blackducksoftware/horizon/pkg/deployer"
 	alertclientset "github.com/blackducksoftware/synopsys-operator/pkg/alert/client/clientset/versioned"
+	alertapi "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
+	blackduckapi "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
+	opssightapi "github.com/blackducksoftware/synopsys-operator/pkg/api/opssight/v1"
 	blackduckclientset "github.com/blackducksoftware/synopsys-operator/pkg/blackduck/client/clientset/versioned"
 	opssightclientset "github.com/blackducksoftware/synopsys-operator/pkg/opssight/client/clientset/versioned"
 	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
@@ -220,5 +223,92 @@ func RunKubeEditorCmd(restConfig *rest.Config, kube bool, openshift bool, args .
 		return err
 	}
 	//time.Sleep(1 * time.Second) TODO why did Jay put this here???
+	return nil
+}
+
+func ctlUpdateBlackDuck(bd *blackduckapi.Blackduck, mock bool, mockFormat string, kubeMock bool, kubeMockFormat string) error {
+	if mock {
+		log.Debugf("running mock mode")
+		err := printMock([]interface{}{bd}, mockFormat)
+		if err != nil {
+			log.Errorf("failed to print in mock mode: %s", err)
+			return nil
+		}
+	} else if kubeMock {
+		log.Debugf("running kube mock mode")
+		interfaces, err := CRDToKube(*bd, nil, restconfig)
+		if err != nil {
+			log.Errorf("failed to convert CRD to kube resources: %s", err)
+		}
+		err = printMock(interfaces, kubeMockFormat)
+		if err != nil {
+			log.Errorf("failed to print in mock mode: %s", err)
+			return nil
+		}
+	} else {
+		_, err := operatorutil.UpdateBlackduck(blackduckClient, bd.Name, bd)
+		if err != nil {
+			log.Errorf("error updating the %s Black Duck instance due to %+v", bd.Name, err)
+			return nil
+		}
+	}
+	return nil
+}
+
+func ctlUpdateOpsSight(opssight *opssightapi.OpsSight, mock bool, mockFormat string, kubeMock bool, kubeMockFormat string) error {
+	if mock {
+		log.Debugf("running mock mode")
+		err := printMock([]interface{}{opssight}, mockFormat)
+		if err != nil {
+			log.Errorf("failed to print in mock mode: %s", err)
+			return nil
+		}
+	} else if kubeMock {
+		log.Debugf("running kube mock mode")
+		interfaces, err := CRDToKube(*opssight, nil, restconfig)
+		if err != nil {
+			log.Errorf("failed to convert CRD to kube resources: %s", err)
+		}
+		err = printMock(interfaces, kubeMockFormat)
+		if err != nil {
+			log.Errorf("failed to print in mock mode: %s", err)
+			return nil
+		}
+	} else {
+		_, err := operatorutil.UpdateOpsSight(opssightClient, opssight.Name, opssight)
+		if err != nil {
+			log.Errorf("error updating the %s OpsSight instance due to %+v", opssight.Name, err)
+			return nil
+		}
+	}
+	return nil
+}
+
+func ctlUpdateAlert(alert *alertapi.Alert, mock bool, mockFormat string, kubeMock bool, kubeMockFormat string) error {
+	if mock {
+		log.Debugf("running mock mode")
+		err := printMock([]interface{}{alert}, mockFormat)
+		if err != nil {
+			log.Errorf("failed to print in mock mode: %s", err)
+			return nil
+		}
+	} else if kubeMock {
+		log.Debugf("running kube mock mode")
+		interfaces, err := CRDToKube(*alert, nil, restconfig)
+		if err != nil {
+			log.Errorf("failed to convert CRD to kube resources: %s", err)
+		}
+		err = printMock(interfaces, kubeMockFormat)
+		if err != nil {
+			log.Errorf("failed to print in mock mode: %s", err)
+			return nil
+		}
+	} else {
+		_, err := operatorutil.UpdateAlert(alertClient, alert.Name, alert)
+		if err != nil {
+			log.Errorf("error updating the %s Alert instance due to %+v", alert.Name, err)
+			return nil
+		}
+	}
 	return nil
 }

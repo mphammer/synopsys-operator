@@ -45,13 +45,13 @@ func PrettyPrint(v interface{}, format string) (string, error) {
 	case format == string(JSON):
 		b, err = json.MarshalIndent(v, "", "  ")
 		if err != nil {
-			return "", fmt.Errorf("Failed to convert struct to yaml. Struct: %+v", v)
+			return "", fmt.Errorf("failed to convert struct to yaml. Struct: %+v", v)
 		}
 		fmt.Println(string(b))
 	case format == string(YAML):
 		b, err = yaml.Marshal(v)
 		if err != nil {
-			return "", fmt.Errorf("Failed to convert struct to yaml. Struct: %+v", v)
+			return "", fmt.Errorf("failed to convert struct to yaml. Struct: %+v", v)
 		}
 		fmt.Println(string(b))
 	default:

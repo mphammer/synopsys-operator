@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	alertclientset "github.com/blackducksoftware/synopsys-operator/pkg/alert/client/clientset/versioned"
+	"github.com/blackducksoftware/synopsys-operator/pkg/api"
 	alertapi "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
 	"github.com/blackducksoftware/synopsys-operator/pkg/crdupdater"
 	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
@@ -48,6 +49,11 @@ type Creater struct {
 // NewCreater returns this Alert Creater
 func NewCreater(config *protoform.Config, kubeConfig *rest.Config, kubeClient *kubernetes.Clientset, alertClient *alertclientset.Clientset, routeClient *routeclient.RouteV1Client) *Creater {
 	return &Creater{Config: config, KubeConfig: kubeConfig, KubeClient: kubeClient, AlertClient: alertClient, RouteClient: routeClient}
+}
+
+func (ac *Creater) GetComponents(alert *alertapi.Alert) (*api.ComponentList, error) {
+	specConfig := NewSpecConfig(&alert.Spec)
+	return specConfig.GetComponents()
 }
 
 // Versions is an Interface function that returns the versions supported by this Creater

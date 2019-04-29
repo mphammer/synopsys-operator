@@ -25,15 +25,20 @@ import (
 	"fmt"
 
 	alert "github.com/blackducksoftware/synopsys-operator/pkg/alert"
+	"github.com/blackducksoftware/synopsys-operator/pkg/api"
 	alertv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
 	blackduckv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
 	opssightv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/opssight/v1"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps"
 	blackduck "github.com/blackducksoftware/synopsys-operator/pkg/blackduck"
 	opssight "github.com/blackducksoftware/synopsys-operator/pkg/opssight"
+	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
 	util "github.com/blackducksoftware/synopsys-operator/pkg/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 )
 
 // Resource Ctls for Create Command
@@ -46,8 +51,9 @@ var baseBlackduckSpec = "persistentStorageLatest"
 var baseOpsSightSpec = "disabledBlackDuck"
 var baseAlertSpec = "default"
 
-// Flag for using mock mode - doesn't deploy
-var mockFormat string
+// Flags for using mock mode - doesn't deploy
+var createMockFormat string
+var createKubeMockFormat string
 
 // createCmd represents the create command
 var createCmd = &cobra.Command{
@@ -104,7 +110,19 @@ var createBlackduckCmd = &cobra.Command{
 		blackduck.Kind = "Blackduck"
 		blackduck.APIVersion = "synopsys.com/v1"
 		if cmd.LocalFlags().Lookup("mock").Changed {
-			_, err := util.PrettyPrint(blackduck, mockFormat)
+			log.Debugf("running mock mode")
+			err := printMock([]interface{}{blackduck}, createMockFormat)
+			if err != nil {
+				log.Errorf("failed to print in mock mode: %s", err)
+				return nil
+			}
+		} else if cmd.LocalFlags().Lookup("kube-mock").Changed {
+			log.Debugf("running kube mock mode")
+			interfaces, err := CRDToKube(*blackduck, nil, restconfig)
+			if err != nil {
+				log.Errorf("failed to convert CRD to kube resources: %s", err)
+			}
+			err = printMock(interfaces, createKubeMockFormat)
 			if err != nil {
 				log.Errorf("failed to print in mock mode: %s", err)
 				return nil
@@ -173,7 +191,19 @@ var createOpsSightCmd = &cobra.Command{
 		opssight.Kind = "OpsSight"
 		opssight.APIVersion = "synopsys.com/v1"
 		if cmd.LocalFlags().Lookup("mock").Changed {
-			_, err := util.PrettyPrint(opssight, mockFormat)
+			log.Debugf("running mock mode")
+			err := printMock([]interface{}{opssight}, createMockFormat)
+			if err != nil {
+				log.Errorf("failed to print in mock mode: %s", err)
+				return nil
+			}
+		} else if cmd.LocalFlags().Lookup("kube-mock").Changed {
+			log.Debugf("running kube mock mode")
+			interfaces, err := CRDToKube(*opssight, nil, restconfig)
+			if err != nil {
+				log.Errorf("failed to convert CRD to kube resources: %s", err)
+			}
+			err = printMock(interfaces, createKubeMockFormat)
 			if err != nil {
 				log.Errorf("failed to print in mock mode: %s", err)
 				return nil
@@ -241,7 +271,19 @@ var createAlertCmd = &cobra.Command{
 		alert.Kind = "Alert"
 		alert.APIVersion = "synopsys.com/v1"
 		if cmd.LocalFlags().Lookup("mock").Changed {
-			_, err := util.PrettyPrint(alert, mockFormat)
+			log.Debugf("running mock mode")
+			err := printMock([]interface{}{alert}, createMockFormat)
+			if err != nil {
+				log.Errorf("failed to print in mock mode: %s", err)
+				return nil
+			}
+		} else if cmd.LocalFlags().Lookup("kube-mock").Changed {
+			log.Debugf("running kube mock mode")
+			interfaces, err := CRDToKube(*alert, nil, restconfig)
+			if err != nil {
+				log.Errorf("failed to convert CRD to kube resources: %s", err)
+			}
+			err = printMock(interfaces, createKubeMockFormat)
 			if err != nil {
 				log.Errorf("failed to print in mock mode: %s", err)
 				return nil
@@ -276,19 +318,115 @@ func init() {
 
 	// Add Blackduck Command
 	createBlackduckCmd.Flags().StringVar(&baseBlackduckSpec, "template", baseBlackduckSpec, "Base resource configuration to modify with flags [empty/template/persistentStorageLatest/persistentStorageV1/externalPersistentStorageLatest/externalPersistentStorageV1/bdba/ephemeral/ephemeralCustomAuthCA/externalDB/IPV6Disabled]")
-	createBlackduckCmd.Flags().StringVar(&mockFormat, "mock", mockFormat, "Prints the resource spec instead of creating it [json/yaml]")
+	createBlackduckCmd.Flags().StringVar(&createMockFormat, "mock", createMockFormat, "Prints the CRD resource spec in the specified format instead of creating it [json/yaml]")
+	createBlackduckCmd.Flags().StringVar(&createKubeMockFormat, "kube-mock", createKubeMockFormat, "Prints the Kubernetes resource specs in the specified format instead of creating it [json/yaml]")
 	createBlackduckCtl.AddSpecFlags(createBlackduckCmd, true)
 	createCmd.AddCommand(createBlackduckCmd)
 
 	// Add OpsSight Command
 	createOpsSightCmd.Flags().StringVar(&baseOpsSightSpec, "template", baseOpsSightSpec, "Base resource configuration to modify with flags [empty/template/default/disabledBlackDuck]")
-	createOpsSightCmd.Flags().StringVar(&mockFormat, "mock", mockFormat, "Prints the resource spec instead of creating it [json/yaml]")
+	createOpsSightCmd.Flags().StringVar(&createMockFormat, "mock", createMockFormat, "Prints the resource spec in the specified format instead of creating it [json/yaml]")
+	createOpsSightCmd.Flags().StringVar(&createKubeMockFormat, "kube-mock", createKubeMockFormat, "Prints the Kubernetes resource specs in the specified format instead of creating it [json/yaml]")
 	createOpsSightCtl.AddSpecFlags(createOpsSightCmd, true)
 	createCmd.AddCommand(createOpsSightCmd)
 
 	// Add Alert Command
 	createAlertCmd.Flags().StringVar(&baseAlertSpec, "template", baseAlertSpec, "Base resource configuration to modify with flags [empty/template/default]")
-	createAlertCmd.Flags().StringVar(&mockFormat, "mock", mockFormat, "Prints the resource spec instead of creating it [json/yaml]")
+	createAlertCmd.Flags().StringVar(&createMockFormat, "mock", createMockFormat, "Prints the resource spec in the specified format instead of creating it [json/yaml]")
+	createAlertCmd.Flags().StringVar(&createKubeMockFormat, "kube-mock", createKubeMockFormat, "Prints the Kubernetes resource specs in the specified format instead of creating it [json/yaml]")
 	createAlertCtl.AddSpecFlags(createAlertCmd, true)
 	createCmd.AddCommand(createAlertCmd)
+}
+
+func printMock(objs []interface{}, format string) error {
+	for _, obj := range objs {
+		_, err := util.PrettyPrint(obj, format)
+		if err != nil {
+			return fmt.Errorf("failed to print in mock mode: %s", err)
+		}
+		fmt.Printf("---\n")
+	}
+	return nil
+}
+
+func CRDToKube(crd interface{}, pc *protoform.Config, rc *rest.Config) ([]interface{}, error) {
+	if pc == nil {
+		pc = &protoform.Config{}
+		pc.SelfSetDefaults()
+		pc.DryRun = true
+	}
+	app := apps.NewApp(pc, rc)
+
+	alert, ok := crd.(alertv1.Alert)
+	if ok {
+		cList, err := app.Alert().GetComponents(&alert)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get components: %s", err)
+		}
+		return GetKubeInterfaces(cList), nil
+	}
+
+	blackDuck, ok := crd.(blackduckv1.Blackduck)
+	if ok {
+		cList, err := app.Blackduck().GetComponents(&blackDuck)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get components: %s", err)
+		}
+		return GetKubeInterfaces(cList), nil
+	}
+
+	opsSight, ok := crd.(opssightv1.OpsSight)
+	if ok {
+		sc := opssight.NewSpecConfig(pc, kubeClient, opssightClient, blackduckClient, &opsSight, true)
+		cList, err := sc.GetComponents()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get components: %s", err)
+		}
+		return GetKubeInterfaces(cList), nil
+	}
+
+	return nil, fmt.Errorf("invalid crd interface: %+v", crd)
+}
+
+func GetKubeInterfaces(clist *api.ComponentList) []interface{} {
+	cList := []interface{}{}
+	for _, rc := range clist.ReplicationControllers {
+		o, _ := rc.ToKube()
+		cList = append(cList, o)
+	}
+	for _, svc := range clist.Services {
+		o, _ := svc.ToKube()
+		cList = append(cList, o)
+	}
+	for _, cm := range clist.ConfigMaps {
+		o, _ := cm.ToKube()
+		cList = append(cList, o)
+	}
+	for _, sa := range clist.ServiceAccounts {
+		o, _ := sa.ToKube()
+		cList = append(cList, o)
+	}
+	for _, crb := range clist.ClusterRoleBindings {
+		o, _ := crb.ToKube()
+		cList = append(cList, o)
+	}
+	for _, cr := range clist.ClusterRoles {
+		o, _ := cr.ToKube()
+		cList = append(cList, o)
+	}
+	for _, d := range clist.Deployments {
+		o, _ := d.ToKube()
+		cList = append(cList, o)
+	}
+	for _, sec := range clist.Secrets {
+		o, _ := sec.ToKube()
+		o2 := o.(*corev1.Secret)
+		cList = append(cList, o)
+		fmt.Printf("%+v\n", o2)
+	}
+	for _, pvc := range clist.PersistentVolumeClaims {
+		o, _ := pvc.ToKube()
+		cList = append(cList, o)
+	}
+	return cList
 }

@@ -69,8 +69,8 @@ func (hc *Creater) getPostgresComponents(blackduck *blackduckapi.Blackduck) (*ap
 	return componentList, nil
 }
 
-// getComponents returns the components
-func (hc *Creater) getComponents(blackduck *blackduckapi.Blackduck) (*api.ComponentList, error) {
+// GetComponents returns the components
+func (hc *Creater) GetComponents(blackduck *blackduckapi.Blackduck) (*api.ComponentList, error) {
 
 	componentList := &api.ComponentList{}
 
