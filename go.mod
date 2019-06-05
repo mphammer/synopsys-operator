@@ -30,6 +30,7 @@ require (
 	github.com/onsi/gomega v1.5.0
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/openshift/client-go v3.9.0+incompatible
+	github.com/openshift/library-go v0.0.0-20190610142313-19992070fc8d
 	github.com/pelletier/go-toml v1.4.0 // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v0.9.4

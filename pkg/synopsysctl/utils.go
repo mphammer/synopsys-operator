@@ -21,11 +21,12 @@ under the License.
 
 package synopsysctl
 
-import (
+import ( 
 	"fmt"
 	"os"
 	"os/exec"
 	"reflect"
+	"time"
 
 	horizonapi "github.com/blackducksoftware/horizon/pkg/api"
 	horizoncomponents "github.com/blackducksoftware/horizon/pkg/components"
@@ -36,8 +37,12 @@ import (
 	opssightapi "github.com/blackducksoftware/synopsys-operator/pkg/api/opssight/v1"
 	blackduckclientset "github.com/blackducksoftware/synopsys-operator/pkg/blackduck/client/clientset/versioned"
 	opssightclientset "github.com/blackducksoftware/synopsys-operator/pkg/opssight/client/clientset/versioned"
+	networkv1typedclient "github.com/openshift/client-go/network/clientset/versioned/typed/network/v1"
+	networkv1 "github.com/openshift/client-go/network/clientset/versioned/typed/network/v1"
+	"github.com/openshift/library-go/pkg/network/networkapihelpers"
 	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
 	operatorutil "github.com/blackducksoftware/synopsys-operator/pkg/util"
+	"k8s.io/apimachinery/pkg/util/wait"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -85,7 +90,7 @@ func setResourceClients() error {
 // getKubeClient gets the kubernetes client
 func getKubeClient(kubeConfig *rest.Config) (*kubernetes.Clientset, error) {
 	client, err := kubernetes.NewForConfig(kubeConfig)
-	if err != nil {
+	if err != nil { 
 		return nil, err
 	}
 	return client, nil
@@ -258,4 +263,76 @@ func ctlUpdateResource(resource interface{}, mock bool, mockFormat string, kubeM
 		}
 	}
 	return nil
+}
+func joinProjects(nClient networkv1typedclient.NetworkV1Interface, projectName string, joinProjectName string) error {
+	// Get corresponding NetNamespace for given namespace
+	netns, err := nClient.NetNamespaces().Get(projectName, metav1.GetOptions{})
+	if err != nil { 
+		return err
+	}
+
+	// Apply pod network change intent
+	SetChangePodNetworkAnnotation(netns, joinProjectName)
+
+	// Update NetNamespace object
+	_, err = nClient.NetNamespaces().Update(netns)
+	if err != nil {
+		return err
+	}
+
+	// Validate SDN controller applied or rejected the intent 
+	backoff := wait.Backoff{
+		Steps:    15,
+		Duration: 500 * time.Millisecond, asd
+		Factor:   1.1,
+	}
+	return wait.ExponentialBackoff(backoff, func() (bool, error) {
+		updatedNetNs, err := nClient.NetNamespaces().Get(netns.NetName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		if _, _, err = GetChangePodNetworkAnnotation(updatedNetNs); err == networkapihelpers.ErrorPodNetworkAnnotationNotFound {
+			return true, nil
+		}
+		// Pod network change not applied yet
+		return false, nil
+	})
+}
+
+// SetChangePodNetworkAnnotation sets network change intent on NetNamespace
+func SetChangePodNetworkAnnotation(netns *networkv1.NetNamespace, params string) {
+	if netns.Annotations == nil {
+		netns.Annotations = make(map[string]string)
+	}
+
+	value := string(networkapihelpers.JoinPodNetwork)
+	if len(params) != 0 {
+		value = fmt.Sprintf("%s:%s", value, params)
+	}
+	netns.Annotations[networkv1.ChangePodNetworkAnnotation] = value
+}
+
+// GetChangePodNetworkAnnotation fetches network change intent from NetNamespace 
+func GetChangePodNetworkAnnotation(netns *networkv1.NetNamespace) (PodNetworkAction, string, error) {
+	value, ok := netns.Annotations[networkv1.ChangePodNetworkAnnotation]
+	if !ok {
+		return PodNetworkAction(""), "", ErrorPodNetworkAnnotationNotFound
+	}
+
+	args := strings.Split(value, ":")
+	switch PodNetworkAction(args[0]) {
+	case GlobalPodNetwork:
+		return GlobalPodNetwork, "", nil
+	case JoinPodNetwork:
+		if len(args) != 2 {
+			return PodNetworkAction(""), "", fmt.Errorf("invalid namespace for join pod network: %s", value)
+		}
+		namespace := args[1]
+		return JoinPodNetwork, namespace, nil
+	case IsolatePodNetwork:
+		return IsolatePodNetwork, "", nil
+	}
+
+	return PodNetworkAction(""), "", fmt.Errorf("invalid ChangePodNetworkAnnotation: %s", value)
 }
