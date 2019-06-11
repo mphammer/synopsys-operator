@@ -25,6 +25,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	alertclientset "github.com/blackducksoftware/synopsys-operator/pkg/alert/client/clientset/versioned"
 	alertv1 "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
@@ -100,6 +101,20 @@ func GetOperatorImage(kubeClient *kubernetes.Clientset, namespace string) (strin
 		return "", fmt.Errorf("failed to get Synopsys Operator Image: %s", err)
 	}
 	return currCM.Data["image"], nil
+}
+
+// GetOperatorImageVersion returns the value after the last ":" from the image if
+// the version is supported in the operator
+func GetOperatorImageVersion(image string) (string, error) {
+	splitImage := strings.Split(image, ":")
+	if len(splitImage) < 2 {
+		return "", fmt.Errorf("Synopsys Operator image '%s' doesn't have a version", image)
+	}
+	imageVersion := splitImage[len(splitImage)-1]
+	if _, ok := SOperatorCRDVersionMap.versionMap[imageVersion]; !ok {
+		return "", fmt.Errorf("Synopsys Operator version '%s' is not valid", imageVersion)
+	}
+	return imageVersion, nil
 }
 
 // GetOldOperatorSpec returns a spec that respesents the current Synopsys Operator in the cluster
