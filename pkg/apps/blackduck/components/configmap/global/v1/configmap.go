@@ -43,6 +43,10 @@ type BdConfigmap struct {
 	blackDuck  *blackduckapi.Blackduck
 }
 
+func init() {
+	store.Register(types.BlackDuckGlobalConfigmapV1, NewBdConfigmap)
+}
+
 // NewBdConfigmap returns the Black Duck config map configuration
 func NewBdConfigmap(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ConfigMapInterface, error) {
 	blackDuck, ok := cr.(*blackduckapi.Blackduck)
@@ -53,8 +57,7 @@ func NewBdConfigmap(config *protoform.Config, kubeClient *kubernetes.Clientset, 
 }
 
 // GetCM returns the config map
-func (b BdConfigmap) GetCM() []*components.ConfigMap {
-	var configMaps []*components.ConfigMap
+func (b BdConfigmap) GetCM() (*components.ConfigMap, error) {
 
 	hubConfig := components.NewConfigMap(horizonapi.ConfigMapConfig{Namespace: b.blackDuck.Spec.Namespace, Name: apputils.GetResourceName(b.blackDuck.Name, util.BlackDuckName, "config")})
 
@@ -107,9 +110,8 @@ func (b BdConfigmap) GetCM() []*components.ConfigMap {
 
 	hubConfig.AddData(hubData)
 	hubConfig.AddLabels(apputils.GetVersionLabel("configmap", b.blackDuck.Name, b.blackDuck.Spec.Version))
-	configMaps = append(configMaps, hubConfig)
 
-	return configMaps
+	return hubConfig, nil
 }
 
 // GetBlackDuckKnobs returns the default Black Duck knobs
@@ -128,8 +130,4 @@ func GetBlackDuckKnobs() map[string]string {
 		"DATA_RETENTION_IN_DAYS":            "180",
 		"MAX_TOTAL_SOURCE_SIZE_MB":          "4000",
 	}
-}
-
-func init() {
-	store.Register(types.BlackDuckGlobalConfigmapV1, NewBdConfigmap)
 }

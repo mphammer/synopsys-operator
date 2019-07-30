@@ -43,8 +43,21 @@ type BdService struct {
 	blackDuck  *blackduckapi.Blackduck
 }
 
+func init() {
+	store.Register(types.BlackDuckExposeServiceV1, NewBdService)
+}
+
+// NewBdService returns the Black Duck service configuration
+func NewBdService(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ServiceInterface, error) {
+	blackDuck, ok := cr.(*blackduckapi.Blackduck)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
+	}
+	return &BdService{config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
+}
+
 // GetService returns the service
-func (b BdService) GetService() *components.Service {
+func (b BdService) GetService() (*components.Service, error) {
 	var svc *components.Service
 
 	switch strings.ToUpper(b.blackDuck.Spec.ExposeService) {
@@ -58,18 +71,5 @@ func (b BdService) GetService() *components.Service {
 	default:
 	}
 
-	return svc
-}
-
-// NewBdService returns the Black Duck service configuration
-func NewBdService(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ServiceInterface, error) {
-	blackDuck, ok := cr.(*blackduckapi.Blackduck)
-	if !ok {
-		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
-	}
-	return &BdService{config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
-}
-
-func init() {
-	store.Register(types.BlackDuckExposeServiceV1, NewBdService)
+	return svc, nil
 }

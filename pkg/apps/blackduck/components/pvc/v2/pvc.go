@@ -23,6 +23,7 @@ package v2
 
 import (
 	"fmt"
+
 	"github.com/blackducksoftware/horizon/pkg/components"
 	blackduckapi "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
 	"github.com/blackducksoftware/synopsys-operator/pkg/apps/blackduck"
@@ -37,6 +38,10 @@ type BdPVC struct {
 	config     *protoform.Config
 	kubeClient *kubernetes.Clientset
 	blackDuck  *blackduckapi.Blackduck
+}
+
+func init() {
+	store.Register(types.BlackDuckPVCV2, NewPvc)
 }
 
 // NewPvc returns the Black Duck PVC configuration
@@ -65,8 +70,4 @@ func (b BdPVC) GetPVCs() ([]*components.PersistentVolumeClaim, error) {
 	}
 
 	return blackduck.GenPVC(*b.blackDuck, defaultPVC)
-}
-
-func init() {
-	store.Register(types.BlackDuckPVCV2, NewPvc)
 }

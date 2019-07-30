@@ -43,6 +43,10 @@ type BdConfigmap struct {
 	blackDuck  *blackduckapi.Blackduck
 }
 
+func init() {
+	store.Register(types.BlackDuckDatabaseConfigmapV1, NewBdConfigmap)
+}
+
 // NewBdConfigmap returns the Black Duck config map configuration
 func NewBdConfigmap(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ConfigMapInterface, error) {
 	blackDuck, ok := cr.(*blackduckapi.Blackduck)
@@ -53,8 +57,7 @@ func NewBdConfigmap(config *protoform.Config, kubeClient *kubernetes.Clientset, 
 }
 
 // GetCM returns the config map
-func (b BdConfigmap) GetCM() []*components.ConfigMap {
-	var configMaps []*components.ConfigMap
+func (b BdConfigmap) GetCM() (*components.ConfigMap, error) {
 	// DB
 	hubDbConfig := components.NewConfigMap(horizonapi.ConfigMapConfig{Namespace: b.blackDuck.Spec.Namespace, Name: apputils.GetResourceName(b.blackDuck.Name, util.BlackDuckName, "db-config")})
 	if b.blackDuck.Spec.ExternalPostgres != nil {
@@ -82,9 +85,5 @@ func (b BdConfigmap) GetCM() []*components.ConfigMap {
 		hubDbConfig.AddData(map[string]string{"HUB_POSTGRES_ENABLE_SSL": "false"})
 	}
 	hubDbConfig.AddLabels(apputils.GetVersionLabel("postgres", b.blackDuck.Name, b.blackDuck.Spec.Version))
-	configMaps = append(configMaps, hubDbConfig)
-	return configMaps
-}
-func init() {
-	store.Register(types.BlackDuckDatabaseConfigmapV1, NewBdConfigmap)
+	return hubDbConfig, nil
 }

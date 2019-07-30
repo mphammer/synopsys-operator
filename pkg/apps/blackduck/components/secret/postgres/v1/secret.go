@@ -23,6 +23,7 @@ package v1
 
 import (
 	"fmt"
+
 	horizonapi "github.com/blackducksoftware/horizon/pkg/api"
 	"github.com/blackducksoftware/horizon/pkg/components"
 	blackduckapi "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
@@ -41,38 +42,49 @@ type BdRSecret struct {
 	blackDuck  *blackduckapi.Blackduck
 }
 
-// GetSecrets returns the secret
-func (b BdRSecret) GetSecrets() []*components.Secret {
-	var secrets []*components.Secret
+func init() {
+	store.Register(types.BlackDuckPostgresSecretV1, NewBdRSecret)
+}
 
+// NewBdRSecret returns the Black Duck secret configuration
+func NewBdRSecret(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.SecretInterface, error) {
+	blackDuck, ok := cr.(*blackduckapi.Blackduck)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
+	}
+	return &BdRSecret{config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
+}
+
+// GetSecret returns the secret
+func (b BdRSecret) GetSecret() (*components.Secret, error) {
 	var adminPassword, userPassword, postgresPassword string
 	var err error
 	if b.blackDuck.Spec.ExternalPostgres != nil {
 
 		adminPassword, err = util.Base64Decode(b.blackDuck.Spec.ExternalPostgres.PostgresAdminPassword)
 		if err != nil {
-			return nil
+			return nil, fmt.Errorf("unable to decode the external postgres Admin user password")
 		}
 
 		userPassword, err = util.Base64Decode(b.blackDuck.Spec.ExternalPostgres.PostgresUserPassword)
 		if err != nil {
-			return nil
+			return nil, fmt.Errorf("unable to decode the external postgres Black Duck user password")
 		}
 
 	} else {
 		adminPassword, err = util.Base64Decode(b.blackDuck.Spec.AdminPassword)
 		if err != nil {
-			return nil
+			return nil, fmt.Errorf("unable to decode the postgres Admin user password")
 		}
 
 		userPassword, err = util.Base64Decode(b.blackDuck.Spec.UserPassword)
 		if err != nil {
-			return nil
+			return nil, fmt.Errorf("unable to decode the postgres Black Duck user password")
 		}
 
 		postgresPassword, err = util.Base64Decode(b.blackDuck.Spec.PostgresPassword)
 		if err != nil {
-			return nil
+			return nil, fmt.Errorf("unable to decode the postgres Postgres user password")
 		}
 
 	}
@@ -86,19 +98,5 @@ func (b BdRSecret) GetSecrets() []*components.Secret {
 	}
 	postgresSecret.AddLabels(apputils.GetVersionLabel("postgres", b.blackDuck.Name, b.blackDuck.Spec.Version))
 
-	secrets = append(secrets, postgresSecret)
-	return secrets
-}
-
-// NewBdRSecret returns the Black Duck secret configuration
-func NewBdRSecret(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.SecretInterface, error) {
-	blackDuck, ok := cr.(*blackduckapi.Blackduck)
-	if !ok {
-		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
-	}
-	return &BdRSecret{config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
-}
-
-func init() {
-	store.Register(types.BlackDuckPostgresSecretV1, NewBdRSecret)
+	return postgresSecret, nil
 }

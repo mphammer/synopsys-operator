@@ -23,6 +23,7 @@ package v1
 
 import (
 	"fmt"
+
 	horizonapi "github.com/blackducksoftware/horizon/pkg/api"
 	"github.com/blackducksoftware/horizon/pkg/components"
 	blackduckapi "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
@@ -41,9 +42,8 @@ type BdService struct {
 	blackDuck  *blackduckapi.Blackduck
 }
 
-// GetService returns the service
-func (b BdService) GetService() *components.Service {
-	return util.CreateService(apputils.GetResourceName(b.blackDuck.Name, util.BlackDuckName, "zookeeper"), apputils.GetLabel("zookeeper", b.blackDuck.Name), b.blackDuck.Spec.Namespace, int32(2181), int32(2181), horizonapi.ServiceTypeServiceIP, apputils.GetVersionLabel("zookeeper", b.blackDuck.Name, b.blackDuck.Spec.Version))
+func init() {
+	store.Register(types.BlackDuckZookeeperServiceV1, NewBdService)
 }
 
 // NewBdService returns the Black Duck service configuration
@@ -55,6 +55,7 @@ func NewBdService(config *protoform.Config, kubeClient *kubernetes.Clientset, cr
 	return &BdService{config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
 }
 
-func init() {
-	store.Register(types.BlackDuckZookeeperServiceV1, NewBdService)
+// GetService returns the service
+func (b BdService) GetService() (*components.Service, error) {
+	return util.CreateService(apputils.GetResourceName(b.blackDuck.Name, util.BlackDuckName, "zookeeper"), apputils.GetLabel("zookeeper", b.blackDuck.Name), b.blackDuck.Spec.Namespace, int32(2181), int32(2181), horizonapi.ServiceTypeServiceIP, apputils.GetVersionLabel("zookeeper", b.blackDuck.Name, b.blackDuck.Spec.Version)), nil
 }

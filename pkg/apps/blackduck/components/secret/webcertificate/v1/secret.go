@@ -52,17 +52,31 @@ type BdRSecret struct {
 	blackDuck  *blackduckapi.Blackduck
 }
 
-// GetSecrets returns the secret
-func (b BdRSecret) GetSecrets() []*components.Secret {
-	var secrets []*components.Secret
+func init() {
+	store.Register(types.BlackDuckWebCertificateSecretV1, NewBdRSecret)
+}
+
+// NewBdRSecret returns the Black Duck secret configuration
+func NewBdRSecret(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.SecretInterface, error) {
+	blackDuck, ok := cr.(*blackduckapi.Blackduck)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
+	}
+	return &BdRSecret{config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
+}
+
+// GetSecret returns the secret
+func (b BdRSecret) GetSecret() (*components.Secret, error) {
 	certificateSecret := components.NewSecret(horizonapi.SecretConfig{Namespace: b.blackDuck.Spec.Namespace, Name: apputils.GetResourceName(b.blackDuck.Name, util.BlackDuckName, "webserver-certificate"), Type: horizonapi.SecretTypeOpaque})
 
-	cert, key, _ := b.getTLSCertKeyOrCreate()
+	cert, key, err := b.getTLSCertKeyOrCreate()
+	if err != nil {
+		return nil, fmt.Errorf("unable to create the self signed certificate due to %+v", err)
+	}
 	certificateSecret.AddData(map[string][]byte{"WEBSERVER_CUSTOM_CERT_FILE": []byte(cert), "WEBSERVER_CUSTOM_KEY_FILE": []byte(key)})
 	certificateSecret.AddLabels(apputils.GetVersionLabel("secret", b.blackDuck.Name, b.blackDuck.Spec.Version))
 
-	secrets = append(secrets, certificateSecret)
-	return secrets
+	return certificateSecret, nil
 }
 
 func (b BdRSecret) getTLSCertKeyOrCreate() (string, string, error) {
@@ -170,17 +184,4 @@ func pemBlockForKey(priv interface{}) (*pem.Block, error) {
 	default:
 		return nil, nil
 	}
-}
-
-// NewBdRSecret returns the Black Duck secret configuration
-func NewBdRSecret(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.SecretInterface, error) {
-	blackDuck, ok := cr.(*blackduckapi.Blackduck)
-	if !ok {
-		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
-	}
-	return &BdRSecret{config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
-}
-
-func init() {
-	store.Register(types.BlackDuckWebCertificateSecretV1, NewBdRSecret)
 }

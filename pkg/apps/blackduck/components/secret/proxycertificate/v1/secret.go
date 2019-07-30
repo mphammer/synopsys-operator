@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+
 	horizonapi "github.com/blackducksoftware/horizon/pkg/api"
 	"github.com/blackducksoftware/horizon/pkg/components"
 	blackduckapi "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
@@ -44,22 +45,34 @@ type BdRSecret struct {
 	blackDuck  *blackduckapi.Blackduck
 }
 
-// GetSecrets returns the secret
-func (b BdRSecret) GetSecrets() []*components.Secret {
-	var secrets []*components.Secret
+func init() {
+	store.Register(types.BlackDuckProxyCertificateSecretV1, NewBdRSecret)
+}
+
+// NewBdRSecret returns the Black Duck secret configuration
+func NewBdRSecret(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.SecretInterface, error) {
+	blackDuck, ok := cr.(*blackduckapi.Blackduck)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
+	}
+	return &BdRSecret{config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
+}
+
+// GetSecret returns the secret
+func (b BdRSecret) GetSecret() (*components.Secret, error) {
 	if len(b.blackDuck.Spec.ProxyCertificate) > 0 {
 		cert, err := stringToCertificate(b.blackDuck.Spec.ProxyCertificate)
 		if err != nil {
-			logrus.Warnf("The proxy certificate provided is invalid")
-		} else {
-			logrus.Debugf("Adding Proxy certificate with SN: %x", cert.SerialNumber)
-			proxyCertificateSecret := components.NewSecret(horizonapi.SecretConfig{Namespace: b.blackDuck.Spec.Namespace, Name: apputils.GetResourceName(b.blackDuck.Name, util.BlackDuckName, "proxy-certificate"), Type: horizonapi.SecretTypeOpaque})
-			proxyCertificateSecret.AddData(map[string][]byte{"HUB_PROXY_CERT_FILE": []byte(b.blackDuck.Spec.ProxyCertificate)})
-			proxyCertificateSecret.AddLabels(apputils.GetVersionLabel("secret", b.blackDuck.Name, b.blackDuck.Spec.Version))
-			secrets = append(secrets, proxyCertificateSecret)
+			return nil, fmt.Errorf("unable to convert the string to proxy certificate due to %+v", err)
 		}
+
+		logrus.Debugf("Adding Proxy certificate with SN: %x", cert.SerialNumber)
+		proxyCertificateSecret := components.NewSecret(horizonapi.SecretConfig{Namespace: b.blackDuck.Spec.Namespace, Name: apputils.GetResourceName(b.blackDuck.Name, util.BlackDuckName, "proxy-certificate"), Type: horizonapi.SecretTypeOpaque})
+		proxyCertificateSecret.AddData(map[string][]byte{"HUB_PROXY_CERT_FILE": []byte(b.blackDuck.Spec.ProxyCertificate)})
+		proxyCertificateSecret.AddLabels(apputils.GetVersionLabel("secret", b.blackDuck.Name, b.blackDuck.Spec.Version))
+		return proxyCertificateSecret, nil
 	}
-	return secrets
+	return nil, nil
 }
 
 func stringToCertificate(certificate string) (*x509.Certificate, error) {
@@ -74,17 +87,4 @@ func stringToCertificate(certificate string) (*x509.Certificate, error) {
 	}
 
 	return cert, nil
-}
-
-// NewBdRSecret returns the Black Duck secret configuration
-func NewBdRSecret(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.SecretInterface, error) {
-	blackDuck, ok := cr.(*blackduckapi.Blackduck)
-	if !ok {
-		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
-	}
-	return &BdRSecret{config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
-}
-
-func init() {
-	store.Register(types.BlackDuckProxyCertificateSecretV1, NewBdRSecret)
 }
