@@ -23,6 +23,7 @@ package v1
 
 import (
 	"fmt"
+
 	"github.com/blackducksoftware/horizon/pkg/components"
 	blackduckapi "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
 	"github.com/blackducksoftware/synopsys-operator/pkg/apps/database/postgres"
@@ -41,8 +42,21 @@ type BdService struct {
 	blackDuck  *blackduckapi.Blackduck
 }
 
+func init() {
+	store.Register(types.BlackDuckPostgresServiceV1, NewBdService)
+}
+
+// NewBdService returns the Black Duck service configuration
+func NewBdService(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ServiceInterface, error) {
+	blackDuck, ok := cr.(*blackduckapi.Blackduck)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
+	}
+	return &BdService{config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
+}
+
 // GetService returns the service
-func (b BdService) GetService() *components.Service {
+func (b BdService) GetService() (*components.Service, error) {
 	name := apputils.GetResourceName(b.blackDuck.Name, util.BlackDuckName, "postgres")
 
 	p := &postgres.Postgres{
@@ -55,18 +69,5 @@ func (b BdService) GetService() *components.Service {
 		IsOpenshift: b.config.IsOpenshift,
 	}
 
-	return p.GetPostgresService()
-}
-
-// NewBdService returns the Black Duck service configuration
-func NewBdService(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ServiceInterface, error) {
-	blackDuck, ok := cr.(*blackduckapi.Blackduck)
-	if !ok {
-		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
-	}
-	return &BdService{config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
-}
-
-func init() {
-	store.Register(types.BlackDuckPostgresServiceV1, NewBdService)
+	return p.GetPostgresService(), nil
 }

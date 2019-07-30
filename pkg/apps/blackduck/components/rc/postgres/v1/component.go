@@ -23,6 +23,7 @@ package v1
 
 import (
 	"fmt"
+
 	"github.com/blackducksoftware/horizon/pkg/components"
 	blackduckapi "github.com/blackducksoftware/synopsys-operator/pkg/api/blackduck/v1"
 	"github.com/blackducksoftware/synopsys-operator/pkg/apps/blackduck/components/rc/utils"
@@ -37,7 +38,7 @@ import (
 
 // BdReplicationController holds the Black Duck RC configuration
 type BdReplicationController struct {
-	*types.ReplicationController
+	*types.PodResource
 	config     *protoform.Config
 	kubeClient *kubernetes.Clientset
 	blackDuck  *blackduckapi.Blackduck
@@ -45,6 +46,15 @@ type BdReplicationController struct {
 
 func init() {
 	store.Register(types.BlackDuckPostgresRCV1, NewBdReplicationController)
+}
+
+// NewBdReplicationController returns the Black Duck RC configuration
+func NewBdReplicationController(podResource *types.PodResource, config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ReplicationControllerInterface, error) {
+	blackDuck, ok := cr.(*blackduckapi.Blackduck)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
+	}
+	return &BdReplicationController{PodResource: podResource, config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
 }
 
 // GetRc returns the RC
@@ -84,13 +94,4 @@ func (c *BdReplicationController) GetRc() (*components.ReplicationController, er
 	}
 
 	return p.GetPostgresReplicationController()
-}
-
-// NewBdReplicationController returns the Black Duck RC configuration
-func NewBdReplicationController(replicationController *types.ReplicationController, config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ReplicationControllerInterface, error) {
-	blackDuck, ok := cr.(*blackduckapi.Blackduck)
-	if !ok {
-		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
-	}
-	return &BdReplicationController{ReplicationController: replicationController, config: config, kubeClient: kubeClient, blackDuck: blackDuck}, nil
 }
