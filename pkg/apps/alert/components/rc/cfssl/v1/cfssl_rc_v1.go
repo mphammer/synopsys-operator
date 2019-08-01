@@ -19,20 +19,54 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package alert
+package v1
 
 import (
 	"fmt"
-	"github.com/blackducksoftware/synopsys-operator/pkg/apps/utils"
 
 	horizonapi "github.com/blackducksoftware/horizon/pkg/api"
 	"github.com/blackducksoftware/horizon/pkg/components"
+	alertapi "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/store"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/types"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/utils"
+	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
 	"github.com/blackducksoftware/synopsys-operator/pkg/util"
 	"github.com/juju/errors"
+	"k8s.io/client-go/kubernetes"
 )
 
+// CfsslReplicationController holds the Alert's Cfssl RC configuration
+type CfsslReplicationController struct {
+	*types.PodResource
+	config     *protoform.Config
+	kubeClient *kubernetes.Clientset
+	alert      *alertapi.Alert
+}
+
+func init() {
+	store.Register(types.AlertCfsslRCV1, NewCfsslReplicationController)
+}
+
+// NewCfsslReplicationController returns the Alert's Cfssl RC configuration
+func NewCfsslReplicationController(replicationController *types.PodResource, config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ReplicationControllerInterface, error) {
+	alert, ok := cr.(*alertapi.Alert)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast the interface to Alert's Cfssl object")
+	}
+	return &CfsslReplicationController{PodResource: replicationController, config: config, kubeClient: kubeClient, alert: alert}, nil
+}
+
+// GetRc returns the RC
+func (a *CfsslReplicationController) GetRc() (*components.ReplicationController, error) {
+	if !*a.alert.Spec.StandAlone {
+		return nil, nil
+	}
+	return a.getCfsslReplicationController()
+}
+
 // getCfsslReplicationController returns a new Replication Controller for a Cffsl
-func (a *SpecConfig) getCfsslReplicationController() (*components.ReplicationController, error) {
+func (a *CfsslReplicationController) getCfsslReplicationController() (*components.ReplicationController, error) {
 	replicas := int32(1)
 	replicationController := components.NewReplicationController(horizonapi.ReplicationControllerConfig{
 		Replicas:  &replicas,
@@ -52,7 +86,7 @@ func (a *SpecConfig) getCfsslReplicationController() (*components.ReplicationCon
 }
 
 // getCfsslPod returns a new Pod for a Cffsl
-func (a *SpecConfig) getCfsslPod() (*components.Pod, error) {
+func (a *CfsslReplicationController) getCfsslPod() (*components.Pod, error) {
 	pod := components.NewPod(horizonapi.PodConfig{
 		Name: utils.GetResourceName(a.alert.Name, util.AlertName, "cfssl"),
 	})
@@ -74,11 +108,12 @@ func (a *SpecConfig) getCfsslPod() (*components.Pod, error) {
 }
 
 // getCfsslContainer returns a new Container for a Cffsl
-func (a *SpecConfig) getCfsslContainer() (*components.Container, error) {
-	image := a.alert.Spec.CfsslImage
-	if image == "" {
-		image = GetImageTag(a.alert.Spec.Version, "blackduck-cfssl")
+func (a *CfsslReplicationController) getCfsslContainer() (*components.Container, error) {
+	containerConfig, ok := a.Containers[types.AlertCfsslContainerName]
+	if !ok {
+		return nil, fmt.Errorf("couldn't find container %s", types.AlertCfsslContainerName)
 	}
+	image := containerConfig.Image
 	container, err := components.NewContainer(horizonapi.ContainerConfig{
 		Name:   "blackduck-cfssl",
 		Image:  image,
@@ -123,7 +158,7 @@ func (a *SpecConfig) getCfsslContainer() (*components.Container, error) {
 }
 
 // getCfsslVolume returns a new Volume for a Cffsl
-func (a *SpecConfig) getCfsslVolume() (*components.Volume, error) {
+func (a *CfsslReplicationController) getCfsslVolume() (*components.Volume, error) {
 	vol, err := components.NewEmptyDirVolume(horizonapi.EmptyDirVolumeConfig{
 		VolumeName: "dir-cfssl",
 		Medium:     horizonapi.StorageMediumDefault,

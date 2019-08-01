@@ -19,21 +19,51 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package alert
+package v1
 
 import (
 	"fmt"
-	"github.com/blackducksoftware/synopsys-operator/pkg/apps/utils"
 
 	horizonapi "github.com/blackducksoftware/horizon/pkg/api"
 	"github.com/blackducksoftware/horizon/pkg/components"
+	alertapi "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/store"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/types"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/utils"
+	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
 	"github.com/blackducksoftware/synopsys-operator/pkg/util"
 	"github.com/juju/errors"
-	log "github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
 )
 
+// AlertReplicationController holds the Alert RC configuration
+type AlertReplicationController struct {
+	*types.PodResource
+	config     *protoform.Config
+	kubeClient *kubernetes.Clientset
+	alert      *alertapi.Alert
+}
+
+func init() {
+	store.Register(types.AlertRCV1, NewAlertReplicationController)
+}
+
+// NewAlertReplicationController returns the Alert RC configuration
+func NewAlertReplicationController(replicationController *types.PodResource, config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ReplicationControllerInterface, error) {
+	alert, ok := cr.(*alertapi.Alert)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast the interface to an Alert object")
+	}
+	return &AlertReplicationController{PodResource: replicationController, config: config, kubeClient: kubeClient, alert: alert}, nil
+}
+
+// GetRc returns the RC
+func (a *AlertReplicationController) GetRc() (*components.ReplicationController, error) {
+	return a.getAlertReplicationController()
+}
+
 // getAlertReplicationController returns a new replication controller for an Alert
-func (a *SpecConfig) getAlertReplicationController() (*components.ReplicationController, error) {
+func (a *AlertReplicationController) getAlertReplicationController() (*components.ReplicationController, error) {
 	replicas := int32(1)
 	replicationController := components.NewReplicationController(horizonapi.ReplicationControllerConfig{
 		Replicas:  &replicas,
@@ -53,7 +83,7 @@ func (a *SpecConfig) getAlertReplicationController() (*components.ReplicationCon
 }
 
 // getAlertPod returns a new Pod for an Alert
-func (a *SpecConfig) getAlertPod() (*components.Pod, error) {
+func (a *AlertReplicationController) getAlertPod() (*components.Pod, error) {
 	pod := components.NewPod(horizonapi.PodConfig{
 		Name: utils.GetResourceName(a.alert.Name, util.AlertName, "alert"),
 	})
@@ -66,10 +96,8 @@ func (a *SpecConfig) getAlertPod() (*components.Pod, error) {
 	pod.AddContainer(container)
 
 	if a.alert.Spec.PersistentStorage {
-		log.Debugf("Adding a PersistentVolumeClaim Volume to the Alert's Pod")
 		pod.AddVolume(a.getAlertPVCVolume())
 	} else {
-		log.Debugf("Adding an EmptyDir Volume to the Alert's Pod")
 		vol, err := a.getAlertEmptyDirVolume()
 		if err != nil {
 			return nil, fmt.Errorf("failed to Add Volume to Alert Pod: %s", err)
@@ -82,11 +110,12 @@ func (a *SpecConfig) getAlertPod() (*components.Pod, error) {
 }
 
 // getAlertContainer returns a new Container for an Alert
-func (a *SpecConfig) getAlertContainer() (*components.Container, error) {
-	image := a.alert.Spec.AlertImage
-	if image == "" {
-		image = GetImageTag(a.alert.Spec.Version, "blackduck-alert")
+func (a *AlertReplicationController) getAlertContainer() (*components.Container, error) {
+	containerConfig, ok := a.Containers[types.AlertContainerName]
+	if !ok {
+		return nil, fmt.Errorf("couldn't find container %s", types.AlertContainerName)
 	}
+	image := containerConfig.Image
 	container, err := components.NewContainer(horizonapi.ContainerConfig{
 		Name:       "alert",
 		Image:      image,
@@ -96,7 +125,7 @@ func (a *SpecConfig) getAlertContainer() (*components.Container, error) {
 	})
 
 	if err != nil {
-		return nil, errors.Trace(err)
+		return nil, fmt.Errorf("%s", err)
 	}
 
 	container.AddPort(horizonapi.PortConfig{
@@ -137,7 +166,7 @@ func (a *SpecConfig) getAlertContainer() (*components.Container, error) {
 }
 
 // getAlertEmptyDirVolume returns a new EmptyDirVolume for an Alert
-func (a *SpecConfig) getAlertEmptyDirVolume() (*components.Volume, error) {
+func (a *AlertReplicationController) getAlertEmptyDirVolume() (*components.Volume, error) {
 	vol, err := components.NewEmptyDirVolume(horizonapi.EmptyDirVolumeConfig{
 		VolumeName: "dir-alert",
 		Medium:     horizonapi.StorageMediumDefault,
@@ -150,7 +179,7 @@ func (a *SpecConfig) getAlertEmptyDirVolume() (*components.Volume, error) {
 }
 
 // getAlertPVCVolume returns a new PVCVolume for an Alert
-func (a *SpecConfig) getAlertPVCVolume() *components.Volume {
+func (a *AlertReplicationController) getAlertPVCVolume() *components.Volume {
 	name := utils.GetResourceName(a.alert.Name, util.AlertName, a.alert.Spec.PVCName)
 	if a.alert.Annotations["synopsys.com/created.by"] == "pre-2019.6.0" {
 		name = a.alert.Spec.PVCName

@@ -21,7 +21,8 @@ under the License.
 
 package types
 
-// Black Duck component constansts
+/* Black Duck component constansts */
+
 const (
 	// Size
 	BlackDuckSizeV1 ComponentName = "blackDuckSizeV1"
@@ -107,7 +108,8 @@ const (
 	PostgresContainerName ContainerName = "postgres"
 )
 
-// OpsSight component constants
+/* OpsSight component constants */
+
 const (
 	// Size
 	OpsSightSizeV1 ComponentName = "opsSightSizeV1"
@@ -181,4 +183,39 @@ const (
 	ImagePerceiverContainerName       ContainerName = "image-perceiver"
 	PerceptorImageFacadeContainerName ContainerName = "perceptor-imagefacade"
 	PerceptorScannerContainerName     ContainerName = "perceptor-scanner"
+)
+
+/* Alert component constants */
+
+const (
+	// Size
+	AlertSizeV1 ComponentName = "alertSizeV1"
+
+	// RC
+	AlertRCV1      ComponentName = "alertRCV1"
+	AlertCfsslRCV1 ComponentName = "alertCfsslRCV1"
+
+	// Service
+	AlertServiceV1       ComponentName = "alertServiceV1"
+	AlertCfsslServiceV1  ComponentName = "alertCfsslServiceV1"
+	AlertExposeServiceV1 ComponentName = "alertExposeServiceV1"
+
+	// ConfigMap
+	AlertConfigmapV1 ComponentName = "alertConfigmapV1"
+
+	// Secret
+	AlertSecretV1 ComponentName = "alertSecretV1"
+
+	// PVC
+	AlertPVCV1 ComponentName = "alertPVCV1"
+
+	// Route
+	AlertRouteV1 ComponentName = "alertRouteV1"
+)
+
+const (
+	// AlertContainerName ...
+	AlertContainerName ContainerName = "alert"
+	// AlertCfsslContainerName ...
+	AlertCfsslContainerName ContainerName = "alertcfssl"
 )

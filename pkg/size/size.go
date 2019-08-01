@@ -33,6 +33,34 @@ import (
 // GetDefaultSize returns the default size. This will be used ny synopsysctl to create the Size custom resources during the deployment
 func GetDefaultSize(name string) *sizev1.Size {
 	switch strings.ToUpper(name) {
+	case "ALERTSMALL":
+		return &sizev1.Size{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+			Spec: sizev1.SizeSpec{
+				PodResources: map[string]sizev1.PodResource{
+					"alert": {
+						Replica: 1,
+						ContainerLimit: map[string]sizev1.ContainerSize{
+							string(types.AlertContainerName): {
+								MinMem: util.IntToInt32(2560),
+								MaxMem: util.IntToInt32(2560),
+							},
+						},
+					},
+					"cfssl": {
+						Replica: 1,
+						ContainerLimit: map[string]sizev1.ContainerSize{
+							string(types.AlertCfsslContainerName): {
+								MinMem: util.IntToInt32(640),
+								MaxMem: util.IntToInt32(640),
+							},
+						},
+					},
+				},
+			},
+		}
 	case "SMALL":
 		return &sizev1.Size{
 			ObjectMeta: metav1.ObjectMeta{

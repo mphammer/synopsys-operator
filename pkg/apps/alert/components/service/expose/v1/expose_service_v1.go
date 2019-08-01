@@ -19,30 +19,60 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package alert
+package v1
 
 import (
+	"fmt"
+	"strings"
+
 	horizonapi "github.com/blackducksoftware/horizon/pkg/api"
 	"github.com/blackducksoftware/horizon/pkg/components"
+	alertapi "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/store"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/types"
 	"github.com/blackducksoftware/synopsys-operator/pkg/apps/utils"
+	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
 	"github.com/blackducksoftware/synopsys-operator/pkg/util"
+	"k8s.io/client-go/kubernetes"
 )
 
-// getAlertClusterService returns a new cluster Service for an Alert
-func (a *SpecConfig) getAlertClusterService() *components.Service {
-	return util.CreateService(
-		utils.GetResourceName(a.alert.Name, util.AlertName, "alert"),
-		a.getLabel("alert"),
-		a.alert.Spec.Namespace,
-		int32(*a.alert.Spec.Port),
-		int32(*a.alert.Spec.Port),
-		horizonapi.ServiceTypeServiceIP,
-		a.getLabel("alert"),
-	)
+// AlertExposeService holds the Black Duck service configuration
+type AlertExposeService struct {
+	config     *protoform.Config
+	kubeClient *kubernetes.Clientset
+	alert      *alertapi.Alert
+}
+
+func init() {
+	store.Register(types.AlertExposeServiceV1, NewAlertExposeService)
+}
+
+// NewAlertExposeService returns the Alert service configuration
+func NewAlertExposeService(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ServiceInterface, error) {
+	alert, ok := cr.(*alertapi.Alert)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast the interface to Alert object")
+	}
+	return &AlertExposeService{config: config, kubeClient: kubeClient, alert: alert}, nil
+}
+
+// GetService returns the service
+func (a *AlertExposeService) GetService() (*components.Service, error) {
+	var svc *components.Service
+	switch strings.ToUpper(a.alert.Spec.ExposeService) {
+	case util.NODEPORT:
+		svc = a.getAlertServiceNodePort()
+		break
+	case util.LOADBALANCER:
+		svc = a.getAlertServiceLoadBalancer()
+		break
+	default:
+	}
+	return svc, nil
 }
 
 // getAlertServiceNodePort returns a new Node Port Service for an Alert
-func (a *SpecConfig) getAlertServiceNodePort() *components.Service {
+func (a *AlertExposeService) getAlertServiceNodePort() *components.Service {
 	return util.CreateService(
 		utils.GetResourceName(a.alert.Name, util.AlertName, "exposed"),
 		a.getLabel("alert"),
@@ -55,7 +85,7 @@ func (a *SpecConfig) getAlertServiceNodePort() *components.Service {
 }
 
 // getAlertServiceLoadBalancer returns a new Load Balancer Service for an Alert
-func (a *SpecConfig) getAlertServiceLoadBalancer() *components.Service {
+func (a *AlertExposeService) getAlertServiceLoadBalancer() *components.Service {
 	return util.CreateService(
 		utils.GetResourceName(a.alert.Name, util.AlertName, "exposed"),
 		a.getLabel("alert"),
@@ -65,4 +95,12 @@ func (a *SpecConfig) getAlertServiceLoadBalancer() *components.Service {
 		horizonapi.ServiceTypeLoadBalancer,
 		a.getLabel("alert"),
 	)
+}
+
+func (a *AlertExposeService) getLabel(name string) map[string]string {
+	return map[string]string{
+		"app":       util.AlertName,
+		"name":      a.alert.Name,
+		"component": name,
+	}
 }

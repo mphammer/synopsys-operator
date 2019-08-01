@@ -28,9 +28,10 @@ import (
 
 	"github.com/blackducksoftware/synopsys-operator/pkg/api"
 	alertapi "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
-	latestalert "github.com/blackducksoftware/synopsys-operator/pkg/apps/alert/latest"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/store"
 	"github.com/blackducksoftware/synopsys-operator/pkg/crdupdater"
 	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
+	sizeclientset "github.com/blackducksoftware/synopsys-operator/pkg/size/client/clientset/versioned"
 	"github.com/blackducksoftware/synopsys-operator/pkg/util"
 	log "github.com/sirupsen/logrus"
 )
@@ -44,33 +45,19 @@ const (
 // Alert is used to handle Alerts in the cluster
 type Alert struct {
 	protoformDeployer *protoform.Deployer
-	creaters          []Creater
+	sizeClient        *sizeclientset.Clientset
 }
 
 // NewAlert will return an Alert type
 func NewAlert(protoformDeployer *protoform.Deployer) *Alert {
-	// Initialize creaters for different versions of Alert (each Creater can support different versions)
-	creaters := []Creater{
-		latestalert.NewCreater(protoformDeployer),
+	sizeClient, err := sizeclientset.NewForConfig(protoformDeployer.KubeConfig)
+	if err != nil {
+		return nil
 	}
-
 	return &Alert{
 		protoformDeployer: protoformDeployer,
-		creaters:          creaters,
+		sizeClient:        sizeClient,
 	}
-}
-
-// getCreater loops through each Creater and returns the one
-// that supports the specified version
-func (a *Alert) getCreater(version string) (Creater, error) {
-	for _, c := range a.creaters {
-		for _, v := range c.Versions() {
-			if strings.Compare(v, version) == 0 {
-				return c, nil
-			}
-		}
-	}
-	return nil, fmt.Errorf("version '%s' is not supported.  Supported versions: %s", version, strings.Join(a.Versions(), ", "))
 }
 
 func (a *Alert) ensureVersion(alt *alertapi.Alert) error {
@@ -91,36 +78,9 @@ func (a *Alert) ensureVersion(alt *alertapi.Alert) error {
 	return nil
 }
 
-// Versions returns the versions that the operator supports for Alert
-func (a *Alert) Versions() []string {
-	var versions []string
-	// Get versions that each Creater supports
-	for _, c := range a.creaters {
-		for _, v := range c.Versions() {
-			versions = append(versions, v)
-		}
-	}
-	return versions
-}
-
-// Ensure will get the necessary Creater and make sure the instance
-// is correctly deployed or deploy it if needed
-func (a *Alert) Ensure(alt *alertapi.Alert) error {
-	// If the version is not specified then we set it to be the latest.
-	if err := a.ensureVersion(alt); err != nil {
-		return err
-	}
-	creater, err := a.getCreater(alt.Spec.Version) // get Creater for the Alert Version
-	if err != nil {
-		return err
-	}
-
-	return creater.Ensure(alt) // Ensure the Alert
-}
-
 // Delete will delete the Alert from the cluster (all Alerts are deleted the same way)
 func (a *Alert) Delete(name string) error {
-	log.Debugf("deleting %s Alert instance", name)
+	log.Debugf("deleting Alert '%s'", name)
 	values := strings.SplitN(name, "/", 2)
 	var namespace string
 	if len(values) == 0 {
@@ -165,22 +125,73 @@ func (a *Alert) Delete(name string) error {
 	return nil
 }
 
+// Versions returns the versions that the operator supports for Alert
+func (a *Alert) Versions() []string {
+	var versions []string
+	// Get versions that each Creater supports
+	for v := range publicVersions {
+		versions = append(versions, v)
+	}
+	return versions
+}
+
+// Ensure will get the necessary Creater and make sure the instance
+// is correctly deployed or deploy it if needed
+func (a *Alert) Ensure(alert *alertapi.Alert) error {
+	// If the version is not specified then we set it to be the latest.
+	if err := a.ensureVersion(alert); err != nil {
+		return err
+	}
+	version, ok := publicVersions[alert.Spec.Version]
+	if !ok {
+		return fmt.Errorf("version '%s' is not supported", alert.Spec.Version)
+	}
+	// Get the Alert Components
+	cpList, err := store.GetComponents(version, a.protoformDeployer.Config, a.protoformDeployer.KubeClient, a.sizeClient, alert)
+	if err != nil {
+		return err
+	}
+	if strings.EqualFold(alert.Spec.DesiredState, "STOP") {
+		commonConfig := crdupdater.NewCRUDComponents(a.protoformDeployer.KubeConfig, a.protoformDeployer.KubeClient, a.protoformDeployer.Config.DryRun, false, alert.Spec.Namespace, alert.Spec.Version,
+			&api.ComponentList{PersistentVolumeClaims: cpList.PersistentVolumeClaims}, fmt.Sprintf("app=%s,name=%s", util.AlertName, alert.Name), false)
+		_, errors := commonConfig.CRUDComponents()
+		if len(errors) > 0 {
+			return fmt.Errorf("unable to stop Alert: %+v", errors)
+		}
+	} else {
+		// Update components in cluster
+		commonConfig := crdupdater.NewCRUDComponents(a.protoformDeployer.KubeConfig, a.protoformDeployer.KubeClient, a.protoformDeployer.Config.DryRun, false, alert.Spec.Namespace, alert.Spec.Version,
+			cpList, fmt.Sprintf("app=%s,name=%s", util.AlertName, alert.Name), false)
+		_, errors := commonConfig.CRUDComponents()
+		if len(errors) > 0 {
+			return fmt.Errorf("unable to update Alert components due to %+v", errors)
+		}
+	}
+	return nil
+}
+
 // GetComponents gets the necessary creater and returns the Alert's components
 func (a *Alert) GetComponents(alt *alertapi.Alert, compType string) (*api.ComponentList, error) {
 	// If the version is not specified then we set it to be the latest.
 	if err := a.ensureVersion(alt); err != nil {
 		return nil, err
 	}
-	creater, err := a.getCreater(alt.Spec.Version) // get Creater for the Alert Version
+
+	version, ok := publicVersions[alt.Spec.Version]
+	if !ok {
+		return nil, fmt.Errorf("version '%s' is not supported", alt.Spec.Version)
+	}
+
+	cp, err := store.GetComponents(version, a.protoformDeployer.Config, a.protoformDeployer.KubeClient, a.sizeClient, alt)
 	if err != nil {
 		return nil, err
 	}
+
 	switch strings.ToUpper(compType) {
 	case CRDResources:
-		return creater.GetComponents(alt)
+		return cp.Filter("component notin (postgres, pvc)")
 	case PVCResources:
-		pvcs, err := creater.GetPVC(alt)
-		return &api.ComponentList{PersistentVolumeClaims: pvcs}, err
+		return cp.Filter("component in (pvc)")
 	}
 	return nil, fmt.Errorf("invalid components type '%s'", compType)
 }

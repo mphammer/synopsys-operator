@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	_ "github.com/blackducksoftware/synopsys-operator/pkg/apps/blackduck/components"
+	_ "github.com/blackducksoftware/synopsys-operator/pkg/apps/alert/components"
 	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
 	"github.com/prometheus/common/log"
 	"os"

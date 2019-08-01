@@ -19,19 +19,49 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package alert
+package v1
 
 import (
 	"fmt"
-	"github.com/blackducksoftware/synopsys-operator/pkg/apps/utils"
 
 	horizonapi "github.com/blackducksoftware/horizon/pkg/api"
 	"github.com/blackducksoftware/horizon/pkg/components"
+	alertapi "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/store"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/types"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/utils"
+	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
 	"github.com/blackducksoftware/synopsys-operator/pkg/util"
+	"k8s.io/client-go/kubernetes"
 )
 
+// AlertSecret holds the Alert secret configuration
+type AlertSecret struct {
+	config     *protoform.Config
+	kubeClient *kubernetes.Clientset
+	alert      *alertapi.Alert
+}
+
+func init() {
+	store.Register(types.AlertSecretV1, NewAlertSecret)
+}
+
+// NewAlertSecret returns the Black Duck secret configuration
+func NewAlertSecret(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.SecretInterface, error) {
+	alert, ok := cr.(*alertapi.Alert)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast the interface to Alert object")
+	}
+	return &AlertSecret{config: config, kubeClient: kubeClient, alert: alert}, nil
+}
+
+// GetSecret returns the secret
+func (a *AlertSecret) GetSecret() (*components.Secret, error) {
+	return a.getAlertSecret()
+}
+
 // getAlertSecret creates a Secret Horizon component for the Alert
-func (a *SpecConfig) getAlertSecret() (*components.Secret, error) {
+func (a *AlertSecret) getAlertSecret() (*components.Secret, error) {
 	// Check Secret Values
 	encryptPassLength := len(a.alert.Spec.EncryptionPassword)
 	if encryptPassLength > 0 && encryptPassLength < 16 {

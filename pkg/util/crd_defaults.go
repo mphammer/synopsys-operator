@@ -490,6 +490,7 @@ func GetAlertDefault() *alertv1.AlertSpec {
 
 	return &alertv1.AlertSpec{
 		ExposeService:     NONE,
+		Size:              "alertsmall",
 		Port:              IntToInt32(8443),
 		PersistentStorage: false,
 		PVCName:           "alert-pvc",
