@@ -125,7 +125,7 @@ type customResource struct {
 
 // GetComponents get the components and generate the corresponding horizon object
 func GetComponents(v types.PublicVersion, config *protoform.Config, kubeclient *kubernetes.Clientset, sizeClient *sizeclientset.Clientset, cr interface{}) (*api.ComponentList, error) {
-	var cp *api.ComponentList
+	cp := &api.ComponentList{}
 
 	// get the custom resource info
 	customResource, err := getCR(cr)
@@ -256,7 +256,7 @@ func generateDeployment(v types.PublicVersion, config *protoform.Config, kubecli
 	}
 
 	// RC
-	for k, publicPod := range v.RCs {
+	for k, publicPod := range v.Deployments {
 		pod := generatePodResource(publicPod, componentSize, customResource, k)
 
 		component, ok := ComponentStore.Deployment[publicPod.Identifier]

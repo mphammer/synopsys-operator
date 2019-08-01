@@ -24,11 +24,12 @@ package synopsysctl
 import (
 	"crypto/x509/pkix"
 	"fmt"
-	"github.com/blackducksoftware/synopsys-operator/pkg/size"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1" 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"strings"
 	"time"
+
+	"github.com/blackducksoftware/synopsys-operator/pkg/size"
 
 	horizonapi "github.com/blackducksoftware/horizon/pkg/api"
 	horizoncomponents "github.com/blackducksoftware/horizon/pkg/components"
@@ -354,7 +355,7 @@ var deployCmd = &cobra.Command{
 		}
 
 		// Create default sizes
-		defaultsSizes := []string{"small", "medium", "large"}
+		defaultsSizes := []string{"alertsmall", "small", "medium", "large"}
 		for _, v := range defaultsSizes {
 			_, err = sizeClient.SynopsysV1().Sizes(operatorNamespace).Create(size.GetDefaultSize(v))
 			if err != nil {

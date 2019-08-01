@@ -4,7 +4,7 @@ Copyright (C) 2019 Synopsys, Inc.
 Licensed to the Apache Software Foundation (ASF) under one
 or more contributor license agreements. See the NOTICE file
 distributed with this work for additional information
-regarding copyright ownershia. The ASF licenses this file
+regarding copyright ownership. The ASF licenses this file
 to you under the Apache License, Version 2.0 (the
 "License"); you may not use this file except in compliance
 with the License. You may obtain a copy of the License at
@@ -19,20 +19,50 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package alert
+package v1
 
 import (
-	"github.com/blackducksoftware/synopsys-operator/pkg/apps/utils"
+	"fmt"
 	"strings"
 
 	horizonapi "github.com/blackducksoftware/horizon/pkg/api"
 	"github.com/blackducksoftware/horizon/pkg/components"
+	alertapi "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/store"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/types"
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/utils"
+	"github.com/blackducksoftware/synopsys-operator/pkg/protoform"
 	"github.com/blackducksoftware/synopsys-operator/pkg/util"
-	log "github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
 )
 
+// AlertConfigmap holds the Alert config map configuration
+type AlertConfigmap struct {
+	config     *protoform.Config
+	kubeClient *kubernetes.Clientset
+	alert      *alertapi.Alert
+}
+
+func init() {
+	store.Register(types.AlertConfigmapV1, NewAlertConfigmap)
+}
+
+// NewAlertConfigmap returns the Alert config map configuration
+func NewAlertConfigmap(config *protoform.Config, kubeClient *kubernetes.Clientset, cr interface{}) (types.ConfigMapInterface, error) {
+	alert, ok := cr.(*alertapi.Alert)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast the interface to Black Duck object")
+	}
+	return &AlertConfigmap{config: config, kubeClient: kubeClient, alert: alert}, nil
+}
+
+// GetCM returns the config map
+func (a *AlertConfigmap) GetCM() (*components.ConfigMap, error) {
+	return a.getAlertConfigMap(), nil
+}
+
 // getAlertConfigMap returns a new ConfigMap for an Alert
-func (a *SpecConfig) getAlertConfigMap() *components.ConfigMap {
+func (a *AlertConfigmap) getAlertConfigMap() *components.ConfigMap {
 	configMap := components.NewConfigMap(horizonapi.ConfigMapConfig{
 		Name:      utils.GetResourceName(a.alert.Name, util.AlertName, "blackduck-config"),
 		Namespace: a.alert.Spec.Namespace,
@@ -48,12 +78,10 @@ func (a *SpecConfig) getAlertConfigMap() *components.ConfigMap {
 	for _, environ := range a.alert.Spec.Environs {
 		vals := strings.Split(environ, ":")
 		if len(vals) != 2 {
-			log.Errorf("Could not split environ '%s' on ':'", environ)
 			continue
 		}
 		environKey := strings.TrimSpace(vals[0])
 		environVal := strings.TrimSpace(vals[1])
-		log.Debugf("Adding Environ %s", environKey)
 		configMapData[environKey] = environVal
 	}
 

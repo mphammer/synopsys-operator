@@ -19,12 +19,13 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package alert
+package v1
 
 import (
-	"github.com/blackducksoftware/synopsys-operator/pkg/apps/utils"
 	"reflect"
 	"testing"
+
+	"github.com/blackducksoftware/synopsys-operator/pkg/apps/utils"
 
 	alertapi "github.com/blackducksoftware/synopsys-operator/pkg/api/alert/v1"
 	"github.com/blackducksoftware/synopsys-operator/pkg/util"
@@ -34,13 +35,13 @@ import (
 
 func TestSpecConfig_getAlertSecret(t *testing.T) {
 	tests := []struct {
-		name          string
-		altSpecConfig *SpecConfig
-		wantErr       bool
+		name              string
+		alertSecretConfig *AlertSecret
+		wantErr           bool
 	}{
 		{
-			name: "base test, namespace scope",
-			altSpecConfig: &SpecConfig{
+			name: "base test",
+			alertSecretConfig: &AlertSecret{
 				alert: &alertapi.Alert{
 					Spec: alertapi.AlertSpec{
 						Namespace:            "alert",
@@ -48,56 +49,39 @@ func TestSpecConfig_getAlertSecret(t *testing.T) {
 						EncryptionGlobalSalt: "1234567890123456",
 					},
 				},
-				isClusterScope: false,
-			},
-			wantErr: false,
-		},
-		{
-			name: "base test, cluster scope",
-			altSpecConfig: &SpecConfig{
-				alert: &alertapi.Alert{
-					Spec: alertapi.AlertSpec{
-						Namespace:            "alert",
-						EncryptionPassword:   "1234567890123456",
-						EncryptionGlobalSalt: "1234567890123456",
-					},
-				},
-				isClusterScope: true,
 			},
 			wantErr: false,
 		},
 		{
 			name: "encryption password not enough characters",
-			altSpecConfig: &SpecConfig{
+			alertSecretConfig: &AlertSecret{
 				alert: &alertapi.Alert{
 					Spec: alertapi.AlertSpec{
 						Namespace:          "alert",
 						EncryptionPassword: "123456789012345",
 					},
 				},
-				isClusterScope: false,
 			},
 			wantErr: true,
 		},
 		{
 			name: "encryption global salt not enough characters",
-			altSpecConfig: &SpecConfig{
+			alertSecretConfig: &AlertSecret{
 				alert: &alertapi.Alert{
 					Spec: alertapi.AlertSpec{
 						Namespace:            "alert",
 						EncryptionGlobalSalt: "123456789012345",
 					},
 				},
-				isClusterScope: false,
 			},
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.altSpecConfig.getAlertSecret()
+			got, err := tt.alertSecretConfig.getAlertSecret()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("altSpecConfig.GetAlertSecret() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("alertSecretConfig.GetAlertSecret() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if err == nil {
@@ -107,17 +91,17 @@ func TestSpecConfig_getAlertSecret(t *testing.T) {
 						APIVersion: "v1",
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      utils.GetResourceName(tt.altSpecConfig.alert.Name, util.AlertName, "secret"),
-						Namespace: tt.altSpecConfig.alert.Spec.Namespace,
-						Labels:    map[string]string{"app": util.AlertName, "component": "alert", "name": tt.altSpecConfig.alert.Name},
+						Name:      utils.GetResourceName(tt.alertSecretConfig.alert.Name, util.AlertName, "secret"),
+						Namespace: tt.alertSecretConfig.alert.Spec.Namespace,
+						Labels:    map[string]string{"app": util.AlertName, "component": "alert", "name": tt.alertSecretConfig.alert.Name},
 					},
 					Data: map[string][]byte{
-						"ALERT_ENCRYPTION_GLOBAL_SALT": []byte(tt.altSpecConfig.alert.Spec.EncryptionGlobalSalt), "ALERT_ENCRYPTION_PASSWORD": []byte(tt.altSpecConfig.alert.Spec.EncryptionPassword),
+						"ALERT_ENCRYPTION_GLOBAL_SALT": []byte(tt.alertSecretConfig.alert.Spec.EncryptionGlobalSalt), "ALERT_ENCRYPTION_PASSWORD": []byte(tt.alertSecretConfig.alert.Spec.EncryptionPassword),
 					},
 					Type: "Opaque",
 				}
 				if !reflect.DeepEqual(got.Secret, want) {
-					t.Errorf("altSpecConfig.GetAlertSecret() = %v, want %v", got, want)
+					t.Errorf("alertSecretConfig.GetAlertSecret() = %v, want %v", got, want)
 				}
 			}
 		})
