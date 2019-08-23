@@ -30,16 +30,6 @@ spec:
         spec:
           description: AlertSpec defines the desired state of Alert
           properties:
-            EncryptionGlobalSalt:
-              type: string
-            EncryptionPassword:
-              type: string
-            alertMemory:
-              description: 'TODO: make this consistent with Black Duck, how "sizes"
-                are handled'
-              type: string
-            cfsslMemory:
-              type: string
             desiredState:
               type: string
             environs:
@@ -54,8 +44,6 @@ spec:
               type: array
             namespace:
               type: string
-            persistentStorage:
-              type: boolean
             port:
               format: int32
               type: integer
@@ -76,8 +64,6 @@ spec:
                 - name
                 type: object
               type: array
-            pvcStorageClass:
-              type: string
             registryConfiguration:
               description: RegistryConfiguration contains the registry configuration
               properties:
@@ -107,12 +93,11 @@ spec:
             version:
               type: string
           required:
-          - EncryptionGlobalSalt
-          - EncryptionPassword
           - exposeService
-          - persistentStorage
           - port
+          - pvc
           - size
+          - standAlone
           type: object
         status:
           description: AlertStatus defines the observed state of Alert

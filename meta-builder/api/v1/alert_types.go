@@ -30,26 +30,18 @@ import (
 
 // AlertSpec defines the desired state of Alert
 type AlertSpec struct {
-	Namespace             string                `json:"namespace,omitempty"`
-	Size                  string                `json:"size"`              // TODO:
-	Version               string                `json:"version,omitempty"` // TODO:
-	ExposeService         string                `json:"exposeService"`
-	StandAlone            StandAlone            `json:"standAlone,omitempty"`
-	Port                  *int32                `json:"port"`
-	EncryptionPassword    string                `json:"EncryptionPassword"`   // TODO:
-	EncryptionGlobalSalt  string                `json:"EncryptionGlobalSalt"` // TODO:
-	Environs              []string              `json:"environs,omitempty"`
-	Secrets               []string              `json:"secrets,omitempty"` // TODO: not in previous API
-	PersistentStorage     bool                  `json:"persistentStorage"`
-	PVC                   []PVC                 `json:"pvc,omitempty"`
-	PVCStorageClass       string                `json:"pvcStorageClass,omitempty"`
-	DesiredState          string                `json:"desiredState,omitempty"`
-	ImageRegistries       []string              `json:"imageRegistries,omitempty"`
-	RegistryConfiguration RegistryConfiguration `json:"registryConfiguration,omitempty"`
-
-	// TODO: make this consistent with Black Duck, how "sizes" are handled
-	AlertMemory string `json:"alertMemory,omitempty"` // TODO:
-	CfsslMemory string `json:"cfsslMemory,omitempty"` // TODO:
+	Namespace             string                 `json:"namespace,omitempty"`
+	Size                  string                 `json:"size"`              // TODO: make for AlertMemory and CfsslMemory
+	Version               string                 `json:"version,omitempty"` // TODO: remove
+	ExposeService         string                 `json:"exposeService"`
+	StandAlone            *StandAlone            `json:"standAlone"`
+	Port                  int32                  `json:"port"`
+	Environs              []string               `json:"environs,omitempty"`
+	Secrets               []string               `json:"secrets,omitempty"` // TODO: not in previous API
+	PVC                   *[]PVC                 `json:"pvc"`
+	DesiredState          string                 `json:"desiredState,omitempty"`
+	ImageRegistries       []string               `json:"imageRegistries,omitempty"`
+	RegistryConfiguration *RegistryConfiguration `json:"registryConfiguration,omitempty"`
 }
 
 type StandAlone struct {

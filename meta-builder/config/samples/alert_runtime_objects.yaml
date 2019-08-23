@@ -203,7 +203,6 @@ spec:
   resources:
     requests:
       storage: 5G
-
 # TODO Routes
 # apiVersion: route.openshift.io/v1
 # kind: Route
