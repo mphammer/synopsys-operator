@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2019 Synopsys, Inc.
+Copyright (C) 2020 Synopsys, Inc.
 
 Licensed to the Apache Software Foundation (ASF) under one
 or more contributor license agreements. See the NOTICE file
@@ -22,13 +22,19 @@ under the License.
 package main
 
 import (
-	"github.com/blackducksoftware/synopsys-operator/pkg/synopsysctl"
-	log "github.com/sirupsen/logrus"
+	"fmt"
+
+	"github.com/blackducksoftware/synopsys-operator/pkg/util"
 )
 
-var version string
-
-// func main() {
-// 	log.Debugf("version: %s", version)
-// 	synopsysctl.Execute(version)
-// }
+func main() {
+	fmt.Printf("Testing Helm...\n")
+	path := "/Users/hammer/go/src/github.com/blackducksoftware/hub-backend/docker/hub-docker/src/main/dist/kubernetes/blackduck-helm"
+	out, err := util.HelmCreate("myblackduck", path, map[string]string{"tlsCertSecretName": "myblackduck-blackduck-webserver-certificate", "enablePersistentStorage": "false", "postgres.isExternal": "false", "postgres.ssl": "false"})
+	if err != nil {
+		fmt.Printf("[ERROR] %+v\n", err)
+		fmt.Printf("%+v\n", out)
+	} else {
+		fmt.Printf("%+v\n", out)
+	}
+}
